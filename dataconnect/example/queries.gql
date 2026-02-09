@@ -1,0 +1,33 @@
+mutation AddNewCourse($courseCode: String!, $courseName: String!, $description: String, $startDate: Date, $endDate: Date, $maxCapacity: Int) @auth(level: USER) {
+  course_insert(data: {courseCode: $courseCode, courseName: $courseName, description: $description, startDate: $startDate, endDate: $endDate, maxCapacity: $maxCapacity})
+}
+
+query GetCoursesForStudent($studentId: UUID!) @auth(level: USER) {
+  enrollments(where: {studentId: {eq: $studentId}}) {
+    course {
+      id
+      courseCode
+      courseName
+      description
+      startDate
+      endDate
+      maxCapacity
+    }
+  }
+}
+
+mutation EnrollStudentInCourse($studentId: UUID!, $courseId: UUID!, $enrollmentDate: Date!, $status: String!) @auth(level: USER) {
+  enrollment_insert(data: {studentId: $studentId, courseId: $courseId, enrollmentDate: $enrollmentDate, status: $status})
+}
+
+query ListAllCourses @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  courses {
+    id
+    courseCode
+    courseName
+    description
+    startDate
+    endDate
+    maxCapacity
+  }
+}

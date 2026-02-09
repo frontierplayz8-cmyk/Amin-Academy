@@ -1,0 +1,47 @@
+type AcademyUser @table {
+  displayName: String!
+  userRole: String!
+  createdAt: Timestamp!
+  email: String
+  phoneNumber: String
+  photoUrl: String
+}
+
+type Course @table {
+  courseName: String!
+  courseCode: String!
+  createdAt: Timestamp!
+  description: String
+  startDate: Date
+  endDate: Date
+  maxCapacity: Int
+}
+
+type Instructor @table {
+  academyUser: AcademyUser
+  bio: String!
+  expertise: String!
+  officeHours: String
+}
+
+type Student @table {
+  academyUser: AcademyUser
+  enrollmentDate: Date!
+  dateOfBirth: Date
+  address: String
+}
+
+type Enrollment @table(key: ["student", "course"]) {
+  student: Student!
+  course: Course!
+  enrollmentDate: Date!
+  status: String!
+  grade: String
+}
+
+type CourseAssignment @table(key: ["instructor", "course"]) {
+  instructor: Instructor!
+  course: Course!
+  assignmentDate: Date!
+  role: String
+}

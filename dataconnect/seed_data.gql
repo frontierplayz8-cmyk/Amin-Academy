@@ -1,0 +1,62 @@
+mutation CreateSeedData @transaction @auth(level: PUBLIC, insecureReason: "This operation is used to seed the database with initial data and is safe to expose to the public.") {
+  academyUser_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      createdAt: "2024-03-15T12:00:00Z",
+      displayName: "Demo User 1",
+      userRole: "Student"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      createdAt: "2024-03-16T14:30:00Z",
+      displayName: "Demo User 2",
+      userRole: "Instructor"
+    }
+  ])
+  course_insertMany(data: [
+    {
+      id: "660e8400-e29b-41d4-a716-446655440000",
+      courseCode: "CS101",
+      courseName: "Introduction to Computer Science",
+      createdAt: "2024-03-17T10:00:00Z",
+      maxCapacity: 50
+    },
+    {
+      id: "660e8400-e29b-41d4-a716-446655440001",
+      courseCode: "ENG202",
+      courseName: "Advanced English Literature",
+      createdAt: "2024-03-18T11:15:00Z",
+      maxCapacity: 30
+    }
+  ])
+  instructor_insertMany(data: [
+    {
+      id: "770e8400-e29b-41d4-a716-446655440000",
+      academyUserId: "550e8400-e29b-41d4-a716-446655440001",
+      bio: "Experienced CS Instructor",
+      expertise: "Computer Science"
+    }
+  ])
+  student_insertMany(data: [
+    {
+      id: "880e8400-e29b-41d4-a716-446655440000",
+      academyUserId: "550e8400-e29b-41d4-a716-446655440000",
+      enrollmentDate: "2024-03-19"
+    }
+  ])
+  courseAssignment_insertMany(data: [
+    {
+      courseId: "660e8400-e29b-41d4-a716-446655440000",
+      instructorId: "770e8400-e29b-41d4-a716-446655440000",
+      assignmentDate: "2024-03-20"
+    }
+  ])
+  enrollment_insertMany(data: [
+    {
+      courseId: "660e8400-e29b-41d4-a716-446655440000",
+      studentId: "880e8400-e29b-41d4-a716-446655440000",
+      enrollmentDate: "2024-03-21",
+      status: "Active"
+    }
+  ])
+}
