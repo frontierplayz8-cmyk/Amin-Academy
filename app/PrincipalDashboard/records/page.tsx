@@ -238,7 +238,7 @@ export default function RecordsManagement() {
 
     const handleViewPaper = (doc: any) => {
         // localStorage.setItem('lastGeneratedPaper', JSON.stringify(doc.data))
-        router.push(`/architect-studio?id=${doc.id}`)
+        router.push(`/PrincipalDashboard/ai-logs/view-paper/architect?id=${doc.id}`)
     }
 
     // Metrics

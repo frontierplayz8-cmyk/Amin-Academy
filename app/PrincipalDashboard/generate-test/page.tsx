@@ -276,7 +276,7 @@ export default function GenerateTestPage() {
 
     const viewPaper = (paper: any) => {
         // localStorage.setItem('lastGeneratedPaper', JSON.stringify(paper.data))
-        router.push(`/architect-studio?id=${paper.id}`)
+        router.push(`/PrincipalDashboard/ai-logs/view-paper/architect?id=${paper.id}`)
     }
 
     return (
@@ -612,16 +612,18 @@ export default function GenerateTestPage() {
                                 <div className="absolute top-0 right-0 p-6 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
                                     <TooltipProvider>
                                         <Tooltip>
-                                            <TooltipTrigger>
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={() => deletePaper(paper.id)}
-                                                    className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </Button>
-                                            </TooltipTrigger>
+                                            <TooltipTrigger
+                                                render={
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        onClick={() => deletePaper(paper.id)}
+                                                        className="w-10 h-10 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                }
+                                            />
                                             <TooltipContent className="bg-zinc-950 border-white/5 text-[10px] font-black uppercase tracking-widest text-red-500">Purge Record</TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>

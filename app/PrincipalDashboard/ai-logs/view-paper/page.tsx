@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
     Printer,
@@ -13,6 +13,7 @@ import {
     Loader2,
     Layout,
     Maximize2,
+    Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -21,7 +22,6 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { EditableText } from '@/components/EditableText'
 import { PaperArchitectEditor } from '@/components/PaperArchitectEditor'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 
 interface PaperData {
@@ -492,16 +492,30 @@ function PaperViewer() {
                             <Button
                                 variant="outline"
                                 onClick={() => {
-                                    // localStorage.setItem('architect_payload', JSON.stringify(paperData))
+                                    localStorage.setItem('architect_payload', JSON.stringify(paperData))
                                     if (id) {
-                                        router.push(`/architect-studio?id=${id}`)
+                                        router.push(`/PrincipalDashboard/ai-logs/view-paper/architect?id=${id}`)
                                     } else {
-                                        window.open('/architect-studio', '_blank')
+                                        router.push('/PrincipalDashboard/ai-logs/view-paper/architect')
                                     }
                                 }}
                                 className="h-12 border-emerald-500/20 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all hover:bg-emerald-500 hover:text-black shadow-[0_4px_20px_rgba(16,185,129,0.1)] group"
                             >
                                 <Maximize2 size={16} className="mr-2 group-hover:scale-110 transition-transform" /> Launch Pro Architect
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    localStorage.setItem('architect_payload', JSON.stringify(paperData))
+                                    if (id) {
+                                        router.push(`/PrincipalDashboard/ai-logs/view-paper/paper-editor?id=${id}`)
+                                    } else {
+                                        router.push('/PrincipalDashboard/ai-logs/view-paper/paper-editor')
+                                    }
+                                }}
+                                className="h-12 border-emerald-500 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl transition-all hover:bg-emerald-400 shadow-[0_4px_20px_rgba(16,185,129,0.3)] group"
+                            >
+                                <Sparkles size={16} className="mr-2 group-hover:rotate-12 transition-transform" /> Advanced Editor
                             </Button>
                             <Button
                                 variant="outline"

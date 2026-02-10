@@ -4,45 +4,30 @@ import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as fabric from 'fabric'
 import {
-    Move, MousePointer2, Lasso, Sparkles, Crop, Palette,
-    Stamp, Eraser, Layers as LayersIcon, Type, Hand, PenTool,
-    ChevronRight, Undo2, Redo2, Maximize2, Settings2, Eye, EyeOff,
-    Lock, Unlock, Plus, Trash2, Download, Save, Image as ImageIcon,
-    History, Sliders, Monitor, Wand2, Scissors, Square,
-    ArrowRight,
-    Upload,
-    X
+    Sparkles, Monitor, X,
+    Layers as LayersIcon,
+    Layout,
+    Minus,
+    Plus,
+    Square
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
-import {
-    ResizablePanelGroup,
-    ResizablePanel,
-    ResizableHandle
-} from '@/components/ui/resizable'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 
-// Toolbar Tools Definition
-const TOOLS = [
-    { id: 'move', icon: Move, label: 'Move Tool (V)', shortcut: 'v' },
-    { id: 'marquee', icon: Square, label: 'Marquee Tool (M)', shortcut: 'm' },
-    { id: 'lasso', icon: Lasso, label: 'Lasso Tool (L)', shortcut: 'l' },
-    { id: 'magic', icon: Wand2, label: 'Magic Wand (W)', shortcut: 'w' },
-    { id: 'crop', icon: Crop, label: 'Crop Tool (C)', shortcut: 'c' },
-    { id: 'brush', icon: Palette, label: 'Brush Tool (B)', shortcut: 'b' },
-    { id: 'clone', icon: Stamp, label: 'Clone Stamp (S)', shortcut: 's' },
-    { id: 'eraser', icon: Eraser, label: 'Eraser (E)', shortcut: 'e' },
-    { id: 'pen', icon: PenTool, label: 'Pen Tool (P)', shortcut: 'p' },
-    { id: 'text', icon: Type, label: 'Horizontal Type Tool (T)', shortcut: 't' },
-    { id: 'hand', icon: Hand, label: 'Hand Tool (H)', shortcut: 'h' },
-]
+// Components
+import { GatewayModal } from '@/components/architect-studio/GatewayModal'
+import { Toolbar } from '@/components/architect-studio/Toolbar'
+import { TopBar } from '@/components/architect-studio/TopBar'
+import { RightPanel } from '@/components/architect-studio/RightPanel'
+import { MagicSwitch } from '@/components/architect-studio/MagicSwitch'
+import { TemplateSidebar } from '@/components/architect-studio/TemplateSidebar'
+import { CustomContextMenu } from '@/components/architect-studio/ContextMenu'
+import { removeBackground } from "@imgly/background-removal"
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from '@/components/ui/breadcrumb'
+import { Separator } from "@/components/ui/separator"
 
 export default function ImageArchitectStudio() {
     const [view, setView] = useState<'choice' | 'blank-setup' | 'editor'>('choice')
@@ -52,9 +37,11 @@ export default function ImageArchitectStudio() {
     const [layers, setLayers] = useState<any[]>([
         { id: 1, name: 'Background', visible: true, locked: false, opacity: 100 }
     ])
+    const [customAssets, setCustomAssets] = useState<any[]>([])
+    const [recentProject, setRecentProject] = useState<any>(null)
     const [selectedLayerId, setSelectedLayerId] = useState<number | null>(1)
-    const [activePanel, setActivePanel] = useState<'properties' | 'brand-kit' | 'ai-lab'>('properties')
-    const [selectedObjectProps, setSelectedObjectProps] = useState<any>({
+    const [activePanel, setActivePanel] = useState<'properties' | 'brand-kit' | 'ai-lab' | 'assets'>('properties')
+    const initialProps = {
         fill: '#000000',
         stroke: '#000000',
         strokeWidth: 0,
@@ -62,8 +49,14 @@ export default function ImageArchitectStudio() {
         fontFamily: 'Inter',
         fontSize: 20,
         fontWeight: 'normal',
-        textAlign: 'left'
-    })
+        textAlign: 'left',
+        brightness: 0,
+        contrast: 0,
+        saturation: 0,
+        zIndex: 0,
+        isLocked: false
+    }
+    const [selectedObjectProps, setSelectedObjectProps] = useState<any>(initialProps)
 
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const fabricCanvas = useRef<fabric.Canvas | null>(null)
@@ -73,32 +66,242 @@ export default function ImageArchitectStudio() {
     const [genPrompt, setGenPrompt] = useState('')
     const [zoomLevel, setZoomLevel] = useState(100)
     const [isZKeyPressed, setIsZKeyPressed] = useState(false)
+    const [showTemplates, setShowTemplates] = useState(false)
 
-    // Initialize Fabric Canvas
+    // History & Project State
+    const [history, setHistory] = useState<string[]>([])
+    const [historyStep, setHistoryStep] = useState(-1)
+    const [projectTitle, setProjectTitle] = useState('Untitled Design')
+    const [isSelectionActive, setIsSelectionActive] = useState(false)
+    const [isMobile, setIsMobile] = useState(false)
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
+    const [showMagicSwitch, setShowMagicSwitch] = useState(false)
+    const isHandlingHistory = useRef(false)
+
+    // Mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 768
+            setIsMobile(mobile)
+            if (mobile) setIsRightPanelOpen(false)
+        }
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
+
+    // Sidebar Resizing Logic
+    const [rightPanelWidth, setRightPanelWidth] = useState(300)
+    const isResizing = useRef(false)
+    const sidebarRef = useRef<HTMLDivElement>(null)
+
+    const startResizing = React.useCallback(() => {
+        isResizing.current = true
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+    }, [])
+
+    const stopResizing = React.useCallback(() => {
+        isResizing.current = false
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+    }, [])
+
+    const resize = React.useCallback((e: MouseEvent) => {
+        if (isResizing.current) {
+            const newWidth = window.innerWidth - e.clientX
+            if (newWidth > 250 && newWidth < 600) { // Min and Max width constraints
+                setRightPanelWidth(newWidth)
+            }
+        }
+    }, [])
+
+    useEffect(() => {
+        window.addEventListener('mousemove', resize)
+        window.addEventListener('mouseup', stopResizing)
+        return () => {
+            window.removeEventListener('mousemove', resize)
+            window.removeEventListener('mouseup', stopResizing)
+        }
+    }, [resize, stopResizing])
+
+    // Load Custom Assets & Recent Project
+    useEffect(() => {
+        const savedAssets = localStorage.getItem('bolt_architect_assets')
+        if (savedAssets) {
+            try {
+                setCustomAssets(JSON.parse(savedAssets))
+            } catch (e) {
+                console.error("Failed to load assets", e)
+            }
+        }
+
+        const savedProject = localStorage.getItem('bolt_architect_recent')
+        if (savedProject) {
+            try {
+                const parsed = JSON.parse(savedProject)
+                setRecentProject(parsed)
+            } catch (e) {
+                console.error("Failed to load recent project", e)
+            }
+        }
+    }, [])
+
+    const syncLayers = React.useCallback(() => {
+        if (!fabricCanvas.current) return;
+        const objects = fabricCanvas.current.getObjects() || [];
+        setLayers(objects.map((obj) => {
+            if (!(obj as any)._layerId) {
+                (obj as any)._layerId = Math.random();
+            }
+            return {
+                id: (obj as any)._layerId,
+                name: (obj as any).name || obj.type,
+                visible: obj.visible,
+                locked: !obj.selectable,
+                opacity: (obj.opacity || 1) * 100
+            };
+        }).reverse());
+    }, []);
+
+    // Global Fabric Performance Settings
+    useEffect(() => {
+        (fabric as any).util.objectCaching = true;
+    }, []);
+
+    // Auto-Save & History Handlers
+    const saveCanvas = React.useCallback(() => {
+        if (!fabricCanvas.current) return;
+        const json = (fabricCanvas.current as any).toJSON(['_layerId', 'name', 'locked', 'selectable', 'evented']);
+        // Add preview image
+        const preview = fabricCanvas.current.toDataURL({ format: 'jpeg', quality: 0.5, multiplier: 0.2 });
+        const projectData = {
+            json,
+            preview,
+            timestamp: Date.now(),
+            dimensions
+        };
+        localStorage.setItem('bolt_architect_recent', JSON.stringify(projectData));
+    }, [dimensions]);
+
+    const saveHistory = React.useCallback(() => {
+        if (!fabricCanvas.current || isHandlingHistory.current) return;
+        const json = JSON.stringify((fabricCanvas.current as any).toJSON(['_layerId', 'name', 'locked', 'selectable', 'evented']));
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyStep + 1);
+            newHistory.push(json);
+            // Limit history to 50 steps
+            if (newHistory.length > 50) newHistory.shift();
+            return newHistory;
+        });
+        setHistoryStep(prev => Math.min(prev + 1, 49));
+    }, [historyStep]);
+
+    // Auto-Save Canvas
+    useEffect(() => {
+        if (view !== 'editor' || !fabricCanvas.current) return;
+
+        const canvas = fabricCanvas.current;
+        canvas.on('object:modified', saveCanvas);
+        canvas.on('object:added', saveCanvas);
+        canvas.on('object:removed', saveCanvas);
+
+        canvas.on('object:added', saveHistory);
+        canvas.on('object:removed', saveHistory);
+        canvas.on('object:modified', saveHistory);
+
+        // Auto-save every 30 seconds as backup
+        const interval = setInterval(saveCanvas, 30000);
+
+        return () => {
+            canvas.off('object:modified', saveCanvas);
+            canvas.off('object:added', saveCanvas);
+            canvas.off('object:removed', saveCanvas);
+            canvas.off('object:added', saveHistory);
+            canvas.off('object:removed', saveHistory);
+            canvas.off('object:modified', saveHistory);
+            clearInterval(interval);
+        };
+    }, [view, saveCanvas, saveHistory])
+
+    const undo = () => {
+        if (historyStep > 0 && fabricCanvas.current) {
+            isHandlingHistory.current = true;
+            const prevStep = historyStep - 1;
+            fabricCanvas.current.loadFromJSON(history[prevStep], () => {
+                fabricCanvas.current?.requestRenderAll();
+                setHistoryStep(prevStep);
+                isHandlingHistory.current = false;
+                toast.info("Undo");
+            });
+        }
+    };
+
+    const redo = () => {
+        if (historyStep < history.length - 1 && fabricCanvas.current) {
+            isHandlingHistory.current = true;
+            const nextStep = historyStep + 1;
+            fabricCanvas.current.loadFromJSON(history[nextStep], () => {
+                fabricCanvas.current?.requestRenderAll();
+                setHistoryStep(nextStep);
+                isHandlingHistory.current = false;
+                toast.info("Redo");
+            });
+        }
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                if (e.shiftKey) redo();
+                else undo();
+                e.preventDefault();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                redo();
+                e.preventDefault();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [history, historyStep])
+
+    const loadRecentProject = () => {
+        if (!recentProject) return;
+        setDimensions(recentProject.dimensions);
+        setView('editor');
+        // The canvas initialization effect will run next. We need a way to load data AFTER init.
+        // We'll use a ref or specific effect for this.
+        setTimeout(() => {
+            if (fabricCanvas.current && recentProject.json) {
+                fabricCanvas.current.loadFromJSON(recentProject.json, () => {
+                    fabricCanvas.current?.requestRenderAll();
+                    toast.success("Resumed previous session");
+                });
+            }
+        }, 500); // Small delay to ensure canvas is ready
+    };
+
+
     useEffect(() => {
         if (view === 'editor' && canvasRef.current && !fabricCanvas.current) {
             fabricCanvas.current = new (fabric as any).Canvas(canvasRef.current, {
                 width: dimensions.width,
                 height: dimensions.height,
-                backgroundColor: '#ffffff',
+                backgroundColor: 'transparent', // Ensure transparency
+                preserveObjectStacking: true,
+                renderOnAddRemove: true,
+                stopContextMenu: false, // Allow default context menu event to propagate (for React Context Menu)
+                fireRightClick: true, // Enable right-click events
             });
 
+            // Performance optimizations
+            if (fabricCanvas.current) {
+                fabricCanvas.current.enableRetinaScaling = false; // Disable retina for 60fps on mobile
+            }
+
+
             // Sync Layers UI
-            const syncLayers = () => {
-                const objects = fabricCanvas.current?.getObjects() || [];
-                setLayers(objects.map((obj) => {
-                    if (!(obj as any)._layerId) {
-                        (obj as any)._layerId = Math.random();
-                    }
-                    return {
-                        id: (obj as any)._layerId,
-                        name: (obj as any).name || obj.type,
-                        visible: obj.visible,
-                        locked: !obj.selectable,
-                        opacity: (obj.opacity || 1) * 100
-                    };
-                }).reverse());
-            };
+            syncLayers();
 
             const syncSelection = () => {
                 const activeObj = fabricCanvas.current?.getActiveObject();
@@ -112,7 +315,9 @@ export default function ImageArchitectStudio() {
                         fontFamily: (activeObj as any).fontFamily || 'Inter',
                         fontSize: (activeObj as any).fontSize || 20,
                         fontWeight: (activeObj as any).fontWeight || 'normal',
-                        textAlign: (activeObj as any).textAlign || 'left'
+                        textAlign: (activeObj as any).textAlign || 'left',
+                        zIndex: fabricCanvas.current?.getObjects().indexOf(activeObj) || 0,
+                        isLocked: !activeObj.selectable
                     });
                 } else {
                     setSelectedLayerId(null);
@@ -123,13 +328,18 @@ export default function ImageArchitectStudio() {
             fabricCanvas.current?.on('object:removed', syncLayers);
             fabricCanvas.current?.on('object:modified', syncLayers);
 
-            fabricCanvas.current?.on('selection:created', (e) => {
+            fabricCanvas.current?.on('selection:created', () => {
                 setShowGenFill(true);
+                setIsSelectionActive(true);
                 syncSelection();
             });
-            fabricCanvas.current?.on('selection:updated', syncSelection);
+            fabricCanvas.current?.on('selection:updated', () => {
+                setIsSelectionActive(true);
+                syncSelection();
+            });
             fabricCanvas.current?.on('selection:cleared', () => {
                 setShowGenFill(false);
+                setIsSelectionActive(false);
                 setSelectedObjectProps({
                     fill: '#000000',
                     stroke: '#000000',
@@ -161,103 +371,6 @@ export default function ImageArchitectStudio() {
         }
     }, [view])
 
-    const updateActiveObject = (props: any) => {
-        const activeObj = fabricCanvas.current?.getActiveObject();
-        if (activeObj) {
-            activeObj.set(props);
-            fabricCanvas.current?.renderAll();
-            setSelectedObjectProps((prev: any) => ({ ...prev, ...props }));
-        }
-    };
-
-    const handleBlendModeChange = (mode: string) => {
-        const activeObj = fabricCanvas.current?.getActiveObject();
-        if (activeObj) {
-            const cssToFabric: any = {
-                'Normal': 'source-over',
-                'Multiply': 'multiply',
-                'Screen': 'screen',
-                'Overlay': 'overlay',
-                'Darken': 'darken',
-                'Lighten': 'lighten',
-            };
-            activeObj.set({ globalCompositeOperation: cssToFabric[mode] || 'source-over' });
-            fabricCanvas.current?.renderAll();
-        }
-    };
-
-    const toggleLayerVisibility = (layerId: any) => {
-        const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === layerId);
-        if (obj) {
-            obj.set({ visible: !obj.visible });
-            fabricCanvas.current?.renderAll();
-            // syncLayers is triggered by renderAll if we added the right listeners or manually call it
-            const objects = fabricCanvas.current?.getObjects() || [];
-            setLayers(objects.map((o: any) => ({
-                id: o._layerId,
-                name: o.name || o.type,
-                visible: o.visible,
-                locked: !o.selectable,
-                opacity: (o.opacity || 1) * 100
-            })).reverse());
-        }
-    };
-
-    const toggleLayerLock = (layerId: any) => {
-        const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === layerId);
-        if (obj) {
-            obj.set({ selectable: !obj.selectable, evented: !obj.selectable });
-            fabricCanvas.current?.renderAll();
-            const objects = fabricCanvas.current?.getObjects() || [];
-            setLayers(objects.map((o: any) => ({
-                id: o._layerId,
-                name: o.name || o.type,
-                visible: o.visible,
-                locked: !o.selectable,
-                opacity: (o.opacity || 1) * 100
-            })).reverse());
-        }
-    };
-
-    const [showMagicSwitch, setShowMagicSwitch] = useState(false)
-    const [selectedPreset, setSelectedPreset] = useState<any>(null)
-
-    const handleResize = (preset: { label: string, w: number, h: number }) => {
-        if (!fabricCanvas.current) return;
-
-        const oldW = dimensions.width;
-        const oldH = dimensions.height;
-        const newW = preset.w;
-        const newH = preset.h;
-
-        // Calculate Scale Factor (Uniform)
-        const scaleX = newW / oldW;
-        const scaleY = newH / oldH;
-        const scaleFactor = Math.min(scaleX, scaleY);
-
-        // Update Component State
-        setDimensions({ width: newW, height: newH });
-
-        // Update Fabric Canvas
-        const canvas = fabricCanvas.current;
-        canvas.setDimensions({ width: newW, height: newH });
-
-        // Scale and Center Objects
-        canvas.forEachObject(obj => {
-            const center = obj.getCenterPoint();
-            obj.set({
-                scaleX: (obj.scaleX || 1) * scaleFactor,
-                scaleY: (obj.scaleY || 1) * scaleFactor,
-                left: center.x * scaleX,
-                top: center.y * scaleY
-            });
-            obj.setCoords();
-        });
-
-        canvas.renderAll();
-        setShowMagicSwitch(false);
-        toast.success(`Resized to ${preset.label} (${newW}x${newH})`);
-    }
 
     // Tool Logic Effect
     useEffect(() => {
@@ -267,51 +380,66 @@ export default function ImageArchitectStudio() {
         canvas.isDrawingMode = activeTool === 'brush' || activeTool === 'eraser';
 
         if (canvas.isDrawingMode) {
-            canvas.freeDrawingBrush = activeTool === 'eraser'
-                ? new (fabric as any).EraserBrush(canvas)
-                : new (fabric as any).PencilBrush(canvas);
-            canvas.freeDrawingBrush!.width = 10;
-            canvas.freeDrawingBrush!.color = activeTool === 'eraser' ? '#ffffff' : '#000000';
+            canvas.freeDrawingBrush = new (fabric as any).PencilBrush(canvas);
+            if (canvas.freeDrawingBrush) {
+                canvas.freeDrawingBrush.width = activeTool === 'eraser' ? 30 : (selectedObjectProps.strokeWidth || 5);
+                canvas.freeDrawingBrush.color = activeTool === 'eraser' ? '#ffffff' : (selectedObjectProps.fill || '#000000');
+                if (activeTool === 'eraser') {
+                    canvas.freeDrawingBrush.shadow = new (fabric as any).Shadow({
+                        blur: 0,
+                        offsetX: 0,
+                        offsetY: 0,
+                        color: 'transparent'
+                    });
+                }
+            }
         }
 
-        // Pen Tool (Simplified Vector Path)
+        // Pen Tool (Point-to-Point Vector Path)
         if (activeTool === 'pen') {
-            let isDrawing = false;
+            let points: any[] = [];
             let currentPath: any = null;
 
             const onMouseDown = (o: any) => {
-                isDrawing = true;
                 const pointer = canvas.getScenePoint(o.e);
-                currentPath = new (fabric as any).Path(`M ${pointer.x} ${pointer.y}`, {
-                    fill: '',
-                    stroke: '#000000',
-                    strokeWidth: 2,
-                    selectable: true
-                });
-                canvas.add(currentPath);
-            };
+                points.push(pointer);
 
-            const onMouseMove = (o: any) => {
-                if (!isDrawing) return;
-                const pointer = canvas.getScenePoint(o.e);
-                const pathData = currentPath.path;
-                pathData.push(['L', pointer.x, pointer.y]);
-                currentPath.set({ path: pathData });
-                canvas.requestRenderAll();
-            };
+                if (points.length === 1) {
+                    currentPath = new (fabric as any).Path(`M ${pointer.x} ${pointer.y}`, {
+                        fill: 'transparent',
+                        stroke: '#3b82f6',
+                        strokeWidth: 2,
+                        selectable: true,
+                        evented: true
+                    });
+                    canvas.add(currentPath);
+                } else {
+                    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    currentPath.set({ path: (fabric as any).util.parsePath(pathData) });
+                    canvas.requestRenderAll();
+                }
 
-            const onMouseUp = () => {
-                isDrawing = false;
+                // Close path if clicking near start
+                if (points.length > 2) {
+                    const start = points[0];
+                    const dist = Math.sqrt(Math.pow(pointer.x - start.x, 2) + Math.pow(pointer.y - start.y, 2));
+                    if (dist < 20) {
+                        points.pop();
+                        const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+                        currentPath.set({
+                            path: (fabric as any).util.parsePath(pathData),
+                            fill: 'rgba(59, 130, 246, 0.2)'
+                        });
+                        points = [];
+                        toast.success("Path closed");
+                        canvas.requestRenderAll();
+                    }
+                }
             };
 
             canvas.on('mouse:down', onMouseDown);
-            canvas.on('mouse:move', onMouseMove);
-            canvas.on('mouse:up', onMouseUp);
-
             return () => {
                 canvas.off('mouse:down', onMouseDown);
-                canvas.off('mouse:move', onMouseMove);
-                canvas.off('mouse:up', onMouseUp);
             };
         }
 
@@ -335,45 +463,41 @@ export default function ImageArchitectStudio() {
             return () => canvas.off('mouse:down', onMouseDown);
         }
 
-        // Marquee Tool (Simplified)
-        if (activeTool === 'marquee') {
-            let isDrawing = false;
-            let selectionRect: any = null;
-            let startPoint: any = null;
+        // Lasso Tool (Freehand selection)
+        if (activeTool === 'lasso') {
+            let points: any[] = [];
+            let lassoPath: any = null;
 
             const onMouseDown = (o: any) => {
-                isDrawing = true;
-                startPoint = canvas.getScenePoint(o.e);
-                selectionRect = new (fabric as any).Rect({
-                    left: startPoint.x,
-                    top: startPoint.y,
-                    width: 0,
-                    height: 0,
-                    fill: 'rgba(59, 130, 246, 0.2)',
+                const pointer = canvas.getScenePoint(o.e);
+                points = [pointer];
+                lassoPath = new (fabric as any).Path(`M ${pointer.x} ${pointer.y}`, {
+                    fill: 'rgba(59, 130, 246, 0.1)',
                     stroke: '#3b82f6',
+                    strokeWidth: 1,
                     strokeDashArray: [5, 5],
                     selectable: false,
                     evented: false
                 });
-                canvas.add(selectionRect);
+                canvas.add(lassoPath);
             };
 
             const onMouseMove = (o: any) => {
-                if (!isDrawing) return;
+                if (!lassoPath) return;
                 const pointer = canvas.getScenePoint(o.e);
-                selectionRect.set({
-                    width: Math.abs(pointer.x - startPoint.x),
-                    height: Math.abs(pointer.y - startPoint.y),
-                    left: Math.min(pointer.x, startPoint.x),
-                    top: Math.min(pointer.y, startPoint.y)
-                });
+                points.push(pointer);
+                const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                lassoPath.set({ path: (fabric as any).util.parsePath(pathData + ' Z') });
                 canvas.requestRenderAll();
             };
 
             const onMouseUp = () => {
-                isDrawing = false;
-                setShowGenFill(true);
-                // Keep the rect for visualization until gen fill is used or tool changed
+                if (!lassoPath) return;
+                // Simplified selection: just keep the path for now
+                toast.success("Lasso selection captured");
+                canvas.remove(lassoPath);
+                lassoPath = null;
+                points = [];
             };
 
             canvas.on('mouse:down', onMouseDown);
@@ -381,11 +505,107 @@ export default function ImageArchitectStudio() {
             canvas.on('mouse:up', onMouseUp);
 
             return () => {
-                if (selectionRect) canvas.remove(selectionRect);
                 canvas.off('mouse:down', onMouseDown);
                 canvas.off('mouse:move', onMouseMove);
                 canvas.off('mouse:up', onMouseUp);
             };
+        }
+
+        // Magic Wand Tool (Simplified)
+        if (activeTool === 'magic') {
+            const onMouseDown = (o: any) => {
+                const target = canvas.findTarget(o.e) as any;
+                if (target) {
+                    canvas.setActiveObject(target);
+                    toast.success(`Magic Wand: Selected ${target.type}`);
+                } else {
+                    toast.info("Magic Wand: No object found at point");
+                }
+            };
+            canvas.on('mouse:down', onMouseDown);
+            return () => canvas.off('mouse:down', onMouseDown);
+        }
+
+        // Marquee Tool (Visual selection)
+        if (activeTool === 'marquee') {
+            let rect: any = null;
+            let startPointer: any = null;
+
+            const onMouseDown = (o: any) => {
+                startPointer = canvas.getScenePoint(o.e);
+                rect = new (fabric as any).Rect({
+                    left: startPointer.x,
+                    top: startPointer.y,
+                    width: 0,
+                    height: 0,
+                    fill: 'rgba(59, 130, 246, 0.1)',
+                    stroke: '#3b82f6',
+                    strokeWidth: 1,
+                    strokeDashArray: [5, 5],
+                    selectable: false,
+                    evented: false
+                });
+                canvas.add(rect);
+            };
+
+            const onMouseMove = (o: any) => {
+                if (!rect) return;
+                const pointer = canvas.getScenePoint(o.e);
+                rect.set({
+                    width: Math.abs(pointer.x - startPointer.x),
+                    height: Math.abs(pointer.y - startPointer.y),
+                    left: Math.min(pointer.x, startPointer.x),
+                    top: Math.min(pointer.y, startPointer.y)
+                });
+                canvas.renderAll();
+            };
+
+            const onMouseUp = () => {
+                if (!rect) return;
+                const objects = canvas.getObjects().filter((obj: any) =>
+                    obj !== rect && obj.intersectsWithObject(rect)
+                );
+                canvas.remove(rect);
+                if (objects.length > 0) {
+                    const selection = new (fabric as any).ActiveSelection(objects, { canvas });
+                    canvas.setActiveObject(selection);
+                    setShowGenFill(true);
+                }
+                rect = null;
+                canvas.renderAll();
+            };
+
+            canvas.on('mouse:down', onMouseDown);
+            canvas.on('mouse:move', onMouseMove);
+            canvas.on('mouse:up', onMouseUp);
+
+            return () => {
+                canvas.off('mouse:down', onMouseDown);
+                canvas.off('mouse:move', onMouseMove);
+                canvas.off('mouse:up', onMouseUp);
+            };
+        }
+
+        // Stamp Tool (Duplicate on Click)
+        if (activeTool === 'stamp') {
+            const onMouseDown = (o: any) => {
+                const activeObj = canvas.getActiveObject();
+                if (activeObj) {
+                    const pointer = canvas.getScenePoint(o.e);
+                    activeObj.clone().then((cloned: any) => {
+                        cloned.set({
+                            left: pointer.x,
+                            top: pointer.y,
+                            originX: 'center',
+                            originY: 'center'
+                        });
+                        canvas.add(cloned);
+                        canvas.renderAll();
+                    });
+                }
+            };
+            canvas.on('mouse:down', onMouseDown);
+            return () => canvas.off('mouse:down', onMouseDown);
         }
 
         // Selection Logic
@@ -395,7 +615,7 @@ export default function ImageArchitectStudio() {
         });
 
         canvas.renderAll();
-    }, [activeTool])
+    }, [activeTool, selectedObjectProps.fill, selectedObjectProps.strokeWidth])
 
     const handleClippingMask = () => {
         if (!fabricCanvas.current) return;
@@ -425,7 +645,37 @@ export default function ImageArchitectStudio() {
         });
     }
 
-    // Keyboard Shortcuts
+    // Placeholder for handleZoom functions
+    const handleZoom = (type: 'in' | 'out' | 'fit' | '100') => {
+        if (!fabricCanvas.current) return;
+        const canvas = fabricCanvas.current;
+        let newZoomLevel = zoomLevel;
+
+        switch (type) {
+            case 'in':
+                newZoomLevel = Math.min(zoomLevel + 10, 300);
+                break;
+            case 'out':
+                newZoomLevel = Math.max(zoomLevel - 10, 10);
+                break;
+            case '100':
+                newZoomLevel = 100;
+                break;
+            case 'fit':
+                // Simple fit: scale to fit canvas width
+                const scaleX = canvas.width / dimensions.width;
+                const scaleY = canvas.height / dimensions.height;
+                newZoomLevel = Math.min(scaleX, scaleY) * 100;
+                break;
+        }
+
+        setZoomLevel(newZoomLevel);
+        canvas.setZoom(newZoomLevel / 100);
+        canvas.requestRenderAll();
+        toast.success(`Zoom: ${Math.round(newZoomLevel)}%`);
+    };
+
+    // Keyboard Shortcuts (Same as original but verified)
     useEffect(() => {
         const handleKeys = (e: KeyboardEvent) => {
             // Undo
@@ -437,7 +687,7 @@ export default function ImageArchitectStudio() {
             // Zoom In: Ctrl/Cmd + Plus or Ctrl/Cmd + =
             if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
                 e.preventDefault();
-                setZoomLevel(prev => {
+                setZoomLevel((prev: number) => {
                     const newZoom = Math.min(prev + 10, 300);
                     if (fabricCanvas.current) {
                         const zoom = newZoom / 100;
@@ -452,7 +702,7 @@ export default function ImageArchitectStudio() {
             // Zoom Out: Ctrl/Cmd + Minus
             if ((e.ctrlKey || e.metaKey) && e.key === '-') {
                 e.preventDefault();
-                setZoomLevel(prev => {
+                setZoomLevel((prev: number) => {
                     const newZoom = Math.max(prev - 10, 10);
                     if (fabricCanvas.current) {
                         const zoom = newZoom / 100;
@@ -480,9 +730,19 @@ export default function ImageArchitectStudio() {
             if (e.key === 'b') setActiveTool('brush');
             if (e.key === 't') setActiveTool('text');
 
-            // Track Z key for zoom
             if (e.key === 'z' && !e.ctrlKey && !e.metaKey) {
                 setIsZKeyPressed(true);
+            }
+
+            // Delete functionality - Only Delete key, NOT Backspace
+            if (e.key === 'Delete') {
+                const activeObjects = fabricCanvas.current?.getActiveObjects();
+                if (activeObjects?.length) {
+                    activeObjects.forEach((obj: any) => fabricCanvas.current?.remove(obj));
+                    fabricCanvas.current?.discardActiveObject();
+                    fabricCanvas.current?.renderAll();
+                    toast.success("Deleted selected object(s)");
+                }
             }
         }
 
@@ -512,7 +772,7 @@ export default function ImageArchitectStudio() {
 
             const delta = (e as WheelEvent).deltaY > 0 ? -10 : 10; // Scroll down = zoom out, scroll up = zoom in
 
-            setZoomLevel(prev => {
+            setZoomLevel((prev: any) => {
                 const newZoom = Math.min(Math.max(prev + delta, 10), 300);
 
                 if (fabricCanvas.current) {
@@ -529,19 +789,6 @@ export default function ImageArchitectStudio() {
         return () => canvasContainer.removeEventListener('wheel', handleWheel);
     }, [isZKeyPressed])
 
-    const handleTextAdd = () => {
-        if (!fabricCanvas.current) return;
-        const text = new (fabric as any).IText('Double click to edit', {
-            left: 100,
-            top: 100,
-            fontFamily: 'Inter',
-            fontSize: 40,
-            fill: '#000000'
-        });
-        fabricCanvas.current.add(text);
-        fabricCanvas.current.setActiveObject(text);
-        setActiveTool('move');
-    }
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -551,7 +798,11 @@ export default function ImageArchitectStudio() {
                 const data = f.target?.result as string;
                 if (view === 'editor' && fabricCanvas.current) {
                     (fabric as any).FabricImage.fromURL(data).then((img: any) => {
-                        img.scaleToWidth(400);
+                        // Dynamic scaling
+                        const targetWidth = dimensions.width * 0.5;
+                        if (img.width > targetWidth) {
+                            img.scaleToWidth(targetWidth);
+                        }
                         fabricCanvas.current?.add(img);
                         fabricCanvas.current?.centerObject(img);
                         fabricCanvas.current?.renderAll();
@@ -566,719 +817,789 @@ export default function ImageArchitectStudio() {
         }
     }
 
-    const handleExport = (format: 'png' | 'jpg') => {
+
+
+    const handleSelectAll = () => {
         if (!fabricCanvas.current) return;
-        const dataURL = fabricCanvas.current.toDataURL({
+        fabricCanvas.current.discardActiveObject();
+        const sel = new (fabric as any).ActiveSelection(fabricCanvas.current.getObjects(), {
+            canvas: fabricCanvas.current,
+        });
+        fabricCanvas.current.setActiveObject(sel);
+        fabricCanvas.current.requestRenderAll();
+        toast.info("Selected all objects");
+    };
+
+    const handleDeselect = () => {
+        if (!fabricCanvas.current) return;
+        fabricCanvas.current.discardActiveObject();
+        fabricCanvas.current.requestRenderAll();
+        toast.info("Deselected all");
+    };
+
+    const handleGroup = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject() as any;
+        if (!activeObj || activeObj.type !== 'activeSelection') {
+            toast.error("Select multiple objects to group");
+            return;
+        }
+        activeObj.toGroup();
+        fabricCanvas.current.requestRenderAll();
+        saveHistory();
+        toast.success("Grouped objects");
+    };
+
+    const handleUngroup = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject() as any;
+        if (!activeObj || activeObj.type !== 'group') {
+            toast.error("Select a group to ungroup");
+            return;
+        }
+        activeObj.toActiveSelection();
+        fabricCanvas.current.requestRenderAll();
+        saveHistory();
+        toast.success("Ungrouped objects");
+    };
+
+    const handleLock = () => {
+        if (!fabricCanvas.current) return;
+        const activeObjects = fabricCanvas.current.getActiveObjects();
+        activeObjects.forEach(obj => {
+            obj.set({
+                lockMovementX: true,
+                lockMovementY: true,
+                lockRotation: true,
+                lockScalingX: true,
+                lockScalingY: true,
+                hasControls: false,
+                selectable: false,
+                evented: true,
+                locked: true
+            } as any);
+        });
+        fabricCanvas.current.discardActiveObject();
+        fabricCanvas.current.requestRenderAll();
+        saveHistory();
+        setSelectedObjectProps((prev: any) => ({ ...prev, isLocked: true }));
+        toast.success("Locked selected objects");
+    };
+
+    const handleUnlock = () => {
+        if (!fabricCanvas.current) return;
+        const objects = fabricCanvas.current.getObjects();
+        objects.forEach(obj => {
+            if ((obj as any).locked) {
+                obj.set({
+                    lockMovementX: false,
+                    lockMovementY: false,
+                    lockRotation: false,
+                    lockScalingX: false,
+                    lockScalingY: false,
+                    hasControls: true,
+                    selectable: true,
+                    locked: false
+                } as any);
+            }
+        });
+        fabricCanvas.current.requestRenderAll();
+        saveHistory();
+        setSelectedObjectProps((prev: any) => ({ ...prev, isLocked: false }));
+        toast.success("Unlocked all objects");
+    };
+
+    const handleZIndexChange = (value: number) => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            fabricCanvas.current.moveObjectTo(activeObj, value);
+            fabricCanvas.current.requestRenderAll();
+            saveHistory();
+        }
+    };
+
+    const handleAddText = (type: 'heading' | 'body') => {
+        if (!fabricCanvas.current) return;
+        const text = new (fabric as any).Textbox(type === 'heading' ? 'Add Heading' : 'Add Body Text', {
+            left: 100,
+            top: 100,
+            fontSize: type === 'heading' ? 40 : 20,
+            fontWeight: type === 'heading' ? 'bold' : 'normal',
+            fontFamily: 'Inter, sans-serif',
+            fill: '#000000',
+            width: 300,
+            _layerId: Math.random(),
+        });
+        fabricCanvas.current.add(text);
+        fabricCanvas.current.setActiveObject(text);
+        fabricCanvas.current.requestRenderAll();
+        saveHistory();
+    };
+
+    const handleSaveToAssets = () => {
+        const activeObj = fabricCanvas.current?.getActiveObject();
+        if (activeObj) {
+            const dataURL = activeObj.toDataURL({ format: 'png', multiplier: 2 });
+            setCustomAssets(prev => [...prev, dataURL]);
+            toast.success("Saved to assets");
+        }
+    };
+
+    const handleDeleteAsset = (index: number) => {
+        setCustomAssets(prev => prev.filter((_, i) => i !== index));
+        toast.info("Asset removed");
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !fabricCanvas.current) return;
+        const reader = new FileReader();
+        reader.onload = (f) => {
+            const data = f.target?.result;
+            (fabric as any).FabricImage.fromURL(data as string).then((img: any) => {
+                img.set({
+                    _layerId: Math.random()
+                });
+                img.scaleToWidth(300);
+                fabricCanvas.current?.add(img);
+                fabricCanvas.current?.centerObject(img);
+                fabricCanvas.current?.requestRenderAll();
+                saveHistory();
+                toast.success("Image added to canvas");
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleBringToFront = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            fabricCanvas.current.bringObjectToFront(activeObj);
+            fabricCanvas.current.requestRenderAll();
+            saveHistory();
+            toast.success("Brought to front");
+        }
+    };
+
+    const handleSendToBack = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            fabricCanvas.current.sendObjectToBack(activeObj);
+            fabricCanvas.current.requestRenderAll();
+            saveHistory();
+            toast.success("Sent to back");
+        }
+    };
+
+    const handleBringForward = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            fabricCanvas.current.bringObjectForward(activeObj);
+            fabricCanvas.current.requestRenderAll();
+            saveHistory();
+            toast.success("Brought forward");
+        }
+    };
+
+    const handleSendBackward = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            fabricCanvas.current.sendObjectBackwards(activeObj);
+            fabricCanvas.current.requestRenderAll();
+            saveHistory();
+            toast.success("Sent backward");
+        }
+    };
+
+    const handleDuplicate = () => {
+        if (!fabricCanvas.current) return;
+        const activeObj = fabricCanvas.current.getActiveObject();
+        if (activeObj) {
+            activeObj.clone().then((cloned: any) => {
+                fabricCanvas.current?.discardActiveObject();
+                cloned.set({
+                    left: cloned.left + 20,
+                    top: cloned.top + 20,
+                    evented: true,
+                });
+                if (cloned.type === 'activeSelection') {
+                    cloned.canvas = fabricCanvas.current;
+                    cloned.forEachObject((obj: any) => {
+                        fabricCanvas.current?.add(obj);
+                    });
+                    cloned.setCoords();
+                } else {
+                    fabricCanvas.current?.add(cloned);
+                }
+                cloned._layerId = Math.random();
+                fabricCanvas.current?.setActiveObject(cloned);
+                fabricCanvas.current?.requestRenderAll();
+                saveHistory();
+                toast.success("Duplicated object");
+            });
+        }
+    };
+
+    const handleExport = (format: 'png' | 'jpg', upscale = false) => {
+        if (!fabricCanvas.current) return;
+        const canvas = fabricCanvas.current;
+        const objects = canvas.getObjects();
+        if (objects.length === 0) {
+            toast.error("Nothing to export");
+            return;
+        }
+        const activeSelection = new (fabric as any).ActiveSelection(objects, { canvas });
+        const bounds = activeSelection.getBoundingRect();
+        activeSelection.destroy();
+        const multiplier = upscale ? 4 : 2;
+        const dataURL = canvas.toDataURL({
             format: format === 'png' ? 'png' : 'jpeg',
-            quality: 0.9,
-            multiplier: 2 // High res export
+            quality: 1,
+            multiplier: multiplier,
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            enableRetinaScaling: false
         });
         const link = document.createElement('a');
-        link.download = `architect-export.${format}`;
+        link.download = `architect-export-${upscale ? 'upscaled' : 'standard'}.${format}`;
         link.href = dataURL;
         link.click();
         toast.success(`Exported as ${format.toUpperCase()}`);
+    };
+
+    const deleteSelectedObject = () => {
+        const activeObjects = fabricCanvas.current?.getActiveObjects();
+        if (activeObjects?.length) {
+            activeObjects.forEach((obj: any) => fabricCanvas.current?.remove(obj));
+            fabricCanvas.current?.discardActiveObject();
+            fabricCanvas.current?.requestRenderAll();
+            saveHistory();
+            toast.success("Deleted selected object(s)");
+        }
+    };
+
+    const updateActiveObject = (props: any) => {
+        const activeObj = fabricCanvas.current?.getActiveObject();
+        if (activeObj) {
+            activeObj.set(props);
+            fabricCanvas.current?.requestRenderAll();
+            saveHistory();
+            setSelectedObjectProps((prev: any) => ({ ...prev, ...props }));
+        }
+    };
+
+    const applyFilter = (type: string, value: number) => {
+        const activeObj = fabricCanvas.current?.getActiveObject() as any;
+        if (!activeObj || activeObj.type !== 'image') return;
+
+        if (!activeObj.filters) activeObj.filters = [];
+
+        let filter;
+        switch (type) {
+            case 'brightness':
+                filter = new (fabric as any).filters.Brightness({ brightness: value });
+                break;
+            case 'contrast':
+                filter = new (fabric as any).filters.Contrast({ contrast: value });
+                break;
+            case 'saturation':
+                filter = new (fabric as any).filters.Saturation({ saturation: value });
+                break;
+        }
+
+        if (filter) {
+            const existingIndex = activeObj.filters.findIndex((f: any) => f.type.toLowerCase() === type.toLowerCase());
+            if (existingIndex > -1) activeObj.filters.splice(existingIndex, 1);
+
+            activeObj.filters.push(filter);
+            activeObj.applyFilters();
+            fabricCanvas.current?.renderAll();
+            saveHistory();
+            setSelectedObjectProps((prev: any) => ({ ...prev, [type]: value }));
+        }
+    };
+
+
+    const toggleLayerVisibility = (id: any) => {
+        const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === id);
+        if (obj) {
+            obj.set({ visible: !obj.visible });
+            fabricCanvas.current?.requestRenderAll();
+            syncLayers();
+        }
+    };
+
+    const toggleLayerLock = (id: any) => {
+        const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === id);
+        if (obj) {
+            obj.set({ selectable: !obj.selectable, evented: !obj.selectable, locked: !obj.selectable });
+            fabricCanvas.current?.requestRenderAll();
+            syncLayers();
+        }
+    };
+
+    const handleLayerDelete = (id: any) => {
+        const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === id);
+        if (obj) {
+            fabricCanvas.current?.remove(obj);
+            fabricCanvas.current?.requestRenderAll();
+            saveHistory();
+            syncLayers();
+        }
+    };
+
+    const handleBlendModeChange = (mode: string) => {
+        const activeObj = fabricCanvas.current?.getActiveObject();
+        if (activeObj) {
+            const cssToFabric: any = {
+                'Normal': 'source-over',
+                'Multiply': 'multiply',
+                'Screen': 'screen',
+                'Overlay': 'overlay',
+                'Darken': 'darken',
+                'Lighten': 'lighten',
+            };
+            (activeObj as any).set({ globalCompositeOperation: cssToFabric[mode] || 'source-over' });
+            fabricCanvas.current?.requestRenderAll();
+            saveHistory();
+        }
+    };
+
+    const handleRemoveBackground = async () => {
+        const activeObj = fabricCanvas.current?.getActiveObject();
+        if (!activeObj || activeObj.type !== 'image') {
+            toast.error("Select an image to remove background");
+            return;
+        }
+
+        const toastId = toast.loading("Removing background...");
+        try {
+            const imgElement = (activeObj as any).getElement();
+            const blob = await removeBackground(imgElement);
+            const url = URL.createObjectURL(blob);
+
+            (fabric as any).FabricImage.fromURL(url).then((newImg: any) => {
+                newImg.set({
+                    left: activeObj.left,
+                    top: activeObj.top,
+                    scaleX: activeObj.scaleX,
+                    scaleY: activeObj.scaleY,
+                    angle: activeObj.angle,
+                    _layerId: Math.random()
+                });
+                fabricCanvas.current?.remove(activeObj);
+                fabricCanvas.current?.add(newImg);
+                fabricCanvas.current?.setActiveObject(newImg);
+                fabricCanvas.current?.requestRenderAll();
+                saveHistory();
+                toast.dismiss(toastId);
+                toast.success("Background removed!");
+            });
+        } catch (error) {
+            console.error(error);
+            toast.dismiss(toastId);
+            toast.error("Failed to remove background");
+        }
+    };
+
+    const handleCrop = () => {
+        const canvas = fabricCanvas.current;
+        if (!canvas) return;
+        const activeObj = canvas.getActiveObject() as any;
+        if (!activeObj || activeObj.type !== 'image') {
+            toast.error("Select an image to crop");
+            return;
+        }
+        if (activeObj.clipPath) {
+            activeObj.set({ clipPath: null });
+            canvas.requestRenderAll();
+            toast.success("Crop removed");
+        } else {
+            const clipRect = new (fabric as any).Rect({
+                width: activeObj.width / 2,
+                height: activeObj.height / 2,
+                top: -activeObj.height / 4,
+                left: -activeObj.width / 4,
+                absolutePositioned: false
+            });
+            activeObj.set({ clipPath: clipRect });
+            canvas.requestRenderAll();
+            toast.success("Crop applied");
+        }
+    };
+
+    const handleAddAIImage = (url: string) => {
+        if (!fabricCanvas.current) return;
+        (fabric as any).FabricImage.fromURL(url, { crossOrigin: 'anonymous' }).then((img: any) => {
+            const targetWidth = dimensions.width * 0.5;
+            if (img.width > targetWidth) img.scaleToWidth(targetWidth);
+            img.set({ _layerId: Math.random() });
+            fabricCanvas.current?.add(img);
+            fabricCanvas.current?.centerObject(img);
+            fabricCanvas.current?.requestRenderAll();
+            saveHistory();
+            toast.success("AI Image added");
+        });
+    };
+
+    const handleResize = (preset: { label: string, w: number, h: number }) => {
+        if (!fabricCanvas.current) return;
+        const oldW = dimensions.width;
+        const oldH = dimensions.height;
+        const newW = preset.w;
+        const newH = preset.h;
+        const scaleX = newW / oldW;
+        const scaleY = newH / oldH;
+        const scaleFactor = Math.min(scaleX, scaleY);
+        setDimensions({ width: newW, height: newH });
+        const canvas = fabricCanvas.current;
+        canvas.setDimensions({ width: newW, height: newH });
+        canvas.forEachObject(obj => {
+            const center = obj.getCenterPoint();
+            obj.set({
+                scaleX: (obj.scaleX || 1) * scaleFactor,
+                scaleY: (obj.scaleY || 1) * scaleFactor,
+                left: center.x * scaleX,
+                top: center.y * scaleY
+            });
+            obj.setCoords();
+        });
+        canvas.requestRenderAll();
+        saveHistory();
+        setShowMagicSwitch(false);
+        toast.success(`Resized to ${preset.label}`);
     }
 
     const handleGenerativeFill = () => {
-        if (!genPrompt) return;
-        toast.promise(
-            new Promise(resolve => setTimeout(resolve, 2000)),
-            {
-                loading: 'Generative AI is filling the area...',
-                success: 'Generative Fill complete!',
-                error: 'Failed to generate content'
-            }
-        );
+        toast.promise(new Promise(r => setTimeout(r, 1500)), {
+            loading: 'Generating fill...',
+            success: 'Generative fill applied!',
+            error: 'AI failed'
+        });
         setShowGenFill(false);
         setGenPrompt('');
-    }
+    };
+
+    const handleTextToVector = () => {
+        toast.info("Text to Vector feature coming soon");
+    };
+
+    const handleDataToViz = () => {
+        toast.info("Data to Viz feature coming soon");
+    };
+
 
     if (view === 'editor') {
+        function setShowMagicSwitch(arg0: boolean): void {
+            throw new Error('Function not implemented.')
+        }
+
         return (
             <div className="fixed inset-0 bg-[#1e1e1e] text-[#b4b4b4] flex flex-col font-sans select-none overflow-hidden">
-                {/* 1. TOP MENU BAR */}
-                <div className="h-8 bg-[#2d2d2d] border-b border-black/30 flex items-center px-2 justify-between text-[11px] font-medium">
-                    <div className="flex items-center gap-1">
-                        <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center mr-2">
-                            <ImageIcon size={14} className="text-white" />
-                        </div>
-                        <div className="px-2 py-1 hover:bg-white/10 rounded cursor-default transition-colors text-zinc-300 group relative">
-                            File
-                            <div className="absolute top-full left-0 w-48 bg-[#2d2d2d] border border-black/50 hidden group-hover:block z-50 shadow-2xl">
-                                <div onClick={() => setView('choice')} className="px-4 py-2 hover:bg-blue-600 hover:text-white flex justify-between">
-                                    <span>New...</span>
-                                    <span className="text-zinc-500 text-[9px]">Ctrl+N</span>
+                <TopBar
+                    view={view}
+                    zoomLevel={zoomLevel}
+                    onZoomChange={setZoomLevel}
+                    layers={layers}
+                    selectedLayerId={selectedLayerId}
+                    onViewChange={setView}
+                    onExport={handleExport}
+                    onAddImage={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e: any) => handleImageUpload(e);
+                        input.click();
+                    }}
+                    onMagicSwitch={() => setShowMagicSwitch(true)}
+                    onSelectAll={handleSelectAll}
+                    onDeselect={handleDeselect}
+                    onGroup={handleGroup}
+                    onUngroup={handleUngroup}
+                    onLock={handleLock}
+                    onUnlock={handleUnlock}
+                    onAddText={handleAddText}
+                    onToggleLayerPanel={() => {
+                        setActivePanel('properties')
+                        setIsRightPanelOpen(true)
+                    }}
+                    onToggleAssetsPanel={() => {
+                        setActivePanel('assets')
+                        setIsRightPanelOpen(true)
+                    }}
+                    onUndo={undo}
+                    onRedo={redo}
+                    isMobile={isMobile}
+                />
+
+                <SidebarProvider className="flex-1 min-h-0 overflow-hidden" defaultOpen={!isMobile}>
+                    {!isMobile && (
+                        <Toolbar
+                            activeTool={activeTool}
+                            setActiveTool={setActiveTool}
+                            showTemplates={showTemplates}
+                            onToggleTemplates={() => setShowTemplates(!showTemplates)}
+                        />
+                    )}
+
+                    {activePanel === 'assets' && (
+                        <SidebarInset className="w-80 border-r border-black/40 flex-none bg-[#2d2d2d] z-20">
+                            <div className="p-4">
+                                <h3 className="text-sm font-bold mb-4 uppercase tracking-wider text-zinc-500">Assets</h3>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {customAssets.map((asset, i) => (
+                                        <div key={i} className="group relative aspect-square bg-black/20 rounded border border-white/5 overflow-hidden hover:border-blue-500/50 transition-colors">
+                                            <img src={asset} className="w-full h-full object-contain" alt="" />
+                                            <button onClick={() => handleDeleteAsset(i)} className="absolute top-1 right-1 p-1 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={10} className="text-white" /></button>
+                                            <button
+                                                onClick={() => {
+                                                    (fabric as any).FabricImage.fromURL(asset).then((img: any) => {
+                                                        img.scaleToWidth(150);
+                                                        fabricCanvas.current?.add(img);
+                                                        fabricCanvas.current?.centerObject(img);
+                                                        fabricCanvas.current?.requestRenderAll();
+                                                        saveHistory();
+                                                    });
+                                                }}
+                                                className="absolute inset-x-0 bottom-0 py-1 bg-blue-600/80 text-[8px] font-bold text-center opacity-0 group-hover:opacity-100 transition-opacity uppercase"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="h-[1px] bg-white/5 mx-2" />
-                                <div onClick={() => handleExport('png')} className="px-4 py-2 hover:bg-blue-600 hover:text-white">Export as PNG</div>
-                                <div onClick={() => handleExport('jpg')} className="px-4 py-2 hover:bg-blue-600 hover:text-white">Export as JPG</div>
-                                <div className="h-[1px] bg-white/5 mx-2" />
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white">Close</div>
                             </div>
-                        </div>
-                        <div className="px-2 py-1 hover:bg-white/10 rounded cursor-default transition-colors text-zinc-300 group relative">
-                            Edit
-                            <div className="absolute top-full left-0 w-48 bg-[#2d2d2d] border border-black/50 hidden group-hover:block z-50 shadow-2xl">
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white flex justify-between">
-                                    <span>Undo</span>
-                                    <span className="text-zinc-500 text-[9px]">Ctrl+Z</span>
-                                </div>
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white flex justify-between">
-                                    <span>Redo</span>
-                                    <span className="text-zinc-500 text-[9px]">Ctrl+Shift+Z</span>
-                                </div>
-                                <div className="h-[1px] bg-white/5 mx-2" />
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white">Free Transform</div>
-                            </div>
-                        </div>
-                        <div className="px-2 py-1 hover:bg-white/10 rounded cursor-default transition-colors text-zinc-300 group relative">
-                            Image
-                            <div className="absolute top-full left-0 w-48 bg-[#2d2d2d] border border-black/50 hidden group-hover:block z-50 shadow-2xl">
-                                <div onClick={() => setShowMagicSwitch(true)} className="px-4 py-2 hover:bg-emerald-600 hover:text-white flex items-center justify-between">
+                        </SidebarInset>
+                    )}
+
+                    <TemplateSidebar
+                        isOpen={showTemplates}
+                        onClose={() => setShowTemplates(false)}
+                        onSelectTemplate={(template: any) => {
+                            setDimensions({ width: template.width, height: template.height });
+                            if (fabricCanvas.current) {
+                                fabricCanvas.current.setDimensions({ width: template.width, height: template.height });
+                            }
+                            toast.success(`Template applied: ${template.name}`);
+                        }}
+                        fabricCanvasRef={fabricCanvas}
+                    />
+
+                    <SidebarInset className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
+                        <div className="flex-1 flex min-h-0 overflow-hidden relative">
+                            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                                <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-[#1e1e1e] px-4 transition-all ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 relative z-20">
                                     <div className="flex items-center gap-2">
-                                        <Sparkles size={12} className="text-emerald-400" />
-                                        <span>Magic Switch...</span>
+                                        <SidebarTrigger className="-ml-1" />
+                                        <Separator className="mr-2 h-4" />
+                                        <Breadcrumb>
+                                            <BreadcrumbList>
+                                                <BreadcrumbItem className="hidden md:block">
+                                                    <BreadcrumbLink href="#">Project</BreadcrumbLink>
+                                                </BreadcrumbItem>
+                                                <BreadcrumbSeparator className="hidden md:block" />
+                                                <BreadcrumbItem>
+                                                    <Input
+                                                        value={projectTitle}
+                                                        onChange={(e) => setProjectTitle(e.target.value)}
+                                                        className="h-6 bg-transparent border-none text-white focus:ring-0 px-0 w-auto min-w-[100px] font-bold"
+                                                    />
+                                                </BreadcrumbItem>
+                                            </BreadcrumbList>
+                                        </Breadcrumb>
                                     </div>
-                                    <span className="text-zinc-500 text-[9px]">Ctrl+Alt+I</span>
-                                </div>
-                                <div className="h-[1px] bg-white/5 mx-2" />
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white">Adjustments</div>
-                                <div className="px-4 py-2 hover:bg-blue-600 hover:text-white">Canvas Size</div>
-                            </div>
-                        </div>
-                        {['Layer', 'Type', 'Select', 'Filter', 'View', 'Window', 'Help'].map(item => (
-                            <div key={item} className="px-2 py-1 hover:bg-white/10 rounded cursor-default transition-colors text-zinc-300">
-                                {item}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-4 px-4 text-zinc-500">
-                        <div className="flex items-center gap-2">
-                            <Undo2 size={12} className="cursor-pointer hover:text-white" />
-                            <Redo2 size={12} className="cursor-pointer hover:text-white" />
-                        </div>
-                        <span className="text-[10px] font-mono tracking-tighter text-blue-500 font-bold uppercase">Bolt-Velocity v2.0</span>
-                    </div>
-                </div>
-
-                {/* 2. CONTEXTUAL OPTIONS BAR */}
-                <div className="h-8 bg-[#2d2d2d] border-b border-black/40 flex items-center px-4 gap-6 text-[10px] uppercase font-bold tracking-widest text-[#888]">
-                    <div className="flex items-center gap-2 border-r border-white/5 pr-4 h-4">
-                        <Monitor size={12} />
-                        <span>{dimensions.width} x {dimensions.height}</span>
-                    </div>
-                    {activeTool === 'brush' && (
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <span>Size:</span>
-                                <input type="range" className="w-24 accent-blue-600" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span>Opacity:</span>
-                                <input type="range" className="w-24 accent-blue-600" />
-                            </div>
-                        </div>
-                    )}
-                    {activeTool === 'move' && (
-                        <div className="flex items-center gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" />
-                                <span>Auto-Select</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" />
-                                <span>Show Transform Controls</span>
-                            </label>
-                        </div>
-                    )}
-                </div>
-
-                <ResizablePanelGroup orientation="horizontal" className="flex-1 overflow-hidden">
-                    {/* 3. LEFT TOOLBAR */}
-                    <ResizablePanel defaultSize={4} minSize={3} maxSize={8}>
-                        <div className="h-full bg-[#2d2d2d] border-r border-black/30 flex flex-col items-center py-2 gap-0.5 shadow-xl">
-                            {TOOLS.map(tool => (
-                                <button
-                                    key={tool.id}
-                                    onClick={() => setActiveTool(tool.id)}
-                                    title={tool.label}
-                                    className={cn(
-                                        "p-2 rounded transition-all group relative",
-                                        activeTool === tool.id ? "bg-zinc-700 text-white shadow-inner" : "hover:bg-zinc-700/50 text-[#888] hover:text-[#ccc]"
-                                    )}
-                                >
-                                    <tool.icon size={16} strokeWidth={2.5} />
-                                    {activeTool === tool.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3 bg-blue-500 rounded-r-full" />}
-                                </button>
-                            ))}
-                            <div className="flex-1" />
-                            <div className="p-2 space-y-1">
-                                <div className="w-5 h-5 bg-white border border-black/40 shadow-lg relative z-10" />
-                                <div className="w-5 h-5 bg-black border border-white/20 shadow-lg -mt-3 ml-2" />
-                            </div>
-                        </div>
-                    </ResizablePanel>
-
-                    <ResizableHandle withHandle />
-
-                    {/* 4. MAIN CANVAS AREA */}
-                    <ResizablePanel defaultSize={76}>
-                        <div className={cn(
-                            "h-full bg-[#121212] overflow-auto p-20 flex items-center justify-center custom-scrollbar relative canvas-zoom-area",
-                            isZKeyPressed && "cursor-zoom-in"
-                        )}>
-                            {/* Generative Fill Floating Bar */}
-                            <AnimatePresence>
-                                {showGenFill && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                        className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 p-1.5 bg-[#2d2d2d] border border-black/50 rounded-2xl shadow-2xl backdrop-blur-xl"
-                                    >
-                                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/20 rounded-xl border border-blue-500/20">
-                                            <Sparkles size={14} className="text-blue-400" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Generative Fill</span>
-                                        </div>
-                                        <Input
-                                            value={genPrompt}
-                                            onChange={(e) => setGenPrompt(e.target.value)}
-                                            placeholder="What should I create in this area?"
-                                            className="h-9 w-64 bg-black/40 border-white/5 text-xs text-white rounded-xl placeholder:text-zinc-600 focus:ring-blue-500/20"
-                                        />
-                                        <Button
-                                            onClick={handleGenerativeFill}
-                                            className="h-9 px-4 bg-white text-black hover:bg-zinc-200 rounded-xl text-[10px] font-black uppercase"
-                                        >
-                                            Fill
-                                        </Button>
-                                        <div className="w-[1px] h-4 bg-white/10 mx-1" />
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => setShowGenFill(false)}
-                                            className="h-9 w-9 rounded-xl hover:bg-white/5"
-                                        >
-                                            <X size={14} />
-                                        </Button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            <div className="shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-black/50 bg-white">
-                                <canvas ref={canvasRef} />
-                            </div>
-                        </div>
-                    </ResizablePanel>
-
-                    <ResizableHandle withHandle />
-
-                    {/* 5. RIGHT PANEL SYSTEM */}
-                    <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-                        <div className="h-full bg-[#2d2d2d] border-l border-black/30 flex flex-col overflow-hidden">
-                            {/* Panel Tabs */}
-                            <div className="h-8 bg-[#333] border-b border-black/40 flex text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                                <button
-                                    onClick={() => setActivePanel('properties')}
-                                    className={cn(
-                                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
-                                        activePanel === 'properties' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
-                                    )}
-                                >
-                                    Properties
-                                </button>
-                                <button
-                                    onClick={() => setActivePanel('brand-kit')}
-                                    className={cn(
-                                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
-                                        activePanel === 'brand-kit' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
-                                    )}
-                                >
-                                    Brand Kit
-                                </button>
-                                <button
-                                    onClick={() => setActivePanel('ai-lab')}
-                                    className={cn(
-                                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
-                                        activePanel === 'ai-lab' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
-                                    )}
-                                >
-                                    AI Lab
-                                </button>
-                                <button className="flex-1 hover:bg-white/5 hover:text-white transition-colors">History</button>
-                            </div>
-
-                            {activePanel === 'properties' && (
-                                /* Properties Panel */
-                                <div className="flex-1 flex flex-col min-h-0">
-                                    <div className="p-4 space-y-4">
-                                        {/* Alignment */}
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[9px] uppercase font-black text-zinc-500">Alignment</span>
-                                                <div className="flex gap-1">
-                                                    {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="w-5 h-5 bg-zinc-800 hover:bg-zinc-700 rounded border border-white/5 cursor-pointer" />)}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <Separator className="bg-white/5" />
-
-                                        {/* Dynamic Appearance */}
-                                        <div className="space-y-4">
-                                            <span className="text-[9px] uppercase font-black text-zinc-500">Appearance</span>
-
-                                            {/* Fill Color */}
-                                            <div className="flex items-center justify-between">
-                                                <Label className="text-[10px] text-zinc-400">Fill</Label>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-zinc-500 font-mono">{String(selectedObjectProps.fill).toUpperCase()}</span>
-                                                    <div className="w-6 h-6 rounded-md border border-white/10 overflow-hidden relative">
-                                                        <input
-                                                            type="color"
-                                                            value={selectedObjectProps.fill}
-                                                            onChange={(e) => updateActiveObject({ fill: e.target.value })}
-                                                            className="absolute -inset-1 w-10 h-10 cursor-pointer"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Opacity */}
-                                            <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <Label className="text-[10px] text-zinc-400">Opacity</Label>
-                                                    <span className="text-[10px] text-zinc-500">{Math.round(selectedObjectProps.opacity * 100)}%</span>
-                                                </div>
-                                                <Slider
-                                                    value={[selectedObjectProps.opacity * 100]}
-                                                    onValueChange={(val) => {
-                                                        const newVal = Array.isArray(val) ? val[0] : val;
-                                                        updateActiveObject({ opacity: newVal / 100 });
-                                                    }}
-                                                    max={100}
-                                                    step={1}
-                                                    className="py-2"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Typography Controls */}
-                                        {fabricCanvas.current?.getActiveObject()?.type === 'i-text' && (
-                                            <>
-                                                <Separator className="bg-white/5" />
-                                                <div className="space-y-4">
-                                                    <span className="text-[9px] uppercase font-black text-zinc-500">Typography</span>
-
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <div className="space-y-1">
-                                                            <div className="text-[8px] text-zinc-600 mb-1 uppercase font-black">Font Size</div>
-                                                            <Input
-                                                                type="number"
-                                                                value={selectedObjectProps.fontSize}
-                                                                onChange={(e) => updateActiveObject({ fontSize: parseInt(e.target.value) })}
-                                                                className="h-8 bg-black/20 border-white/5 text-[11px] text-white p-1.5 focus:ring-blue-500/20"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <div className="text-[8px] text-zinc-600 mb-1 uppercase font-black">Weight</div>
-                                                            <select
-                                                                value={selectedObjectProps.fontWeight}
-                                                                onChange={(e) => updateActiveObject({ fontWeight: e.target.value })}
-                                                                className="w-full h-8 bg-black/20 border border-white/5 rounded text-[11px] text-white px-1 outline-none"
-                                                            >
-                                                                <option value="normal">Normal</option>
-                                                                <option value="bold">Bold</option>
-                                                                <option value="900">Black</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {activePanel === 'brand-kit' && (
-                                /* Brand Kit Panel */
-                                <div className="flex-1 flex flex-col p-4 space-y-6 overflow-auto custom-scrollbar">
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[9px] uppercase font-black text-zinc-500">Brand Colors</span>
-                                            <Plus size={12} className="text-zinc-500 hover:text-white cursor-pointer" />
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {[
-                                                '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
-                                                '#8B5CF6', '#EC4899', '#000000', '#FFFFFF'
-                                            ].map(color => (
-                                                <div
-                                                    key={color}
-                                                    onClick={() => {
-                                                        const activeObj = fabricCanvas.current?.getActiveObject();
-                                                        if (activeObj) {
-                                                            activeObj.set('fill', color);
-                                                            fabricCanvas.current?.renderAll();
-                                                            toast.success(`Applied brand color: ${color}`);
-                                                        }
-                                                    }}
-                                                    className="w-10 h-10 rounded-xl border border-white/10 cursor-pointer hover:scale-110 transition-transform shadow-lg group relative"
-                                                    style={{ backgroundColor: color }}
-                                                >
-                                                    <div className="absolute inset-0 border-2 border-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                </div>
-                                            ))}
+                                    <div className="hidden lg:flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
+                                        <div className="text-xs text-zinc-500 font-mono">
+                                            {dimensions.width} x {dimensions.height}
                                         </div>
                                     </div>
-
-                                    <div className="space-y-3 pt-4 border-t border-white/5">
-                                        <span className="text-[9px] uppercase font-black text-zinc-500">Brand Fonts</span>
-                                        <div className="space-y-2">
-                                            {['Inter', 'Outfit', 'Playfair Display', 'Space Mono'].map(font => (
-                                                <button
-                                                    key={font}
-                                                    onClick={() => {
-                                                        const activeObj = fabricCanvas.current?.getActiveObject();
-                                                        if (activeObj && activeObj.type === 'i-text') {
-                                                            (activeObj as any).set('fontFamily', font);
-                                                            fabricCanvas.current?.renderAll();
-                                                            toast.success(`Applied brand font: ${font}`);
-                                                        }
-                                                    }}
-                                                    className="w-full p-3 bg-white/5 border border-white/5 hover:border-blue-500/50 rounded-xl text-left transition-all"
-                                                    style={{ fontFamily: font }}
-                                                >
-                                                    <span className="text-sm text-white">{font}</span>
-                                                </button>
-                                            ))}
+                                    {activeTool === 'select' && (
+                                        <div className="ml-auto flex items-center gap-4 text-xs font-medium text-zinc-400">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" checked readOnly />
+                                                <span>Auto-Select</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" />
+                                                <span>Show Transform Controls</span>
+                                            </label>
                                         </div>
-                                    </div>
-                                </div>
-                            )}
+                                    )}
+                                </header>
 
-                            {activePanel === 'ai-lab' && (
-                                /* AI Lab Panel */
-                                <div className="flex-1 flex flex-col p-4 space-y-6 overflow-auto custom-scrollbar">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Wand2 size={16} className="text-blue-400" />
-                                            <span className="text-[10px] uppercase font-black tracking-widest text-white">Magic Media</span>
+                                <div className="h-10 bg-[#252525] border-b border-black/40 flex items-center justify-between px-4 shrink-0 overflow-x-auto no-scrollbar">
+                                    <div className="flex items-center gap-1 min-w-fit">
+                                        <div className="flex items-center bg-black/20 rounded-lg p-0.5 border border-white/5 mr-2">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-white" onClick={() => handleZoom('out')}><Minus size={14} /></Button>
+                                            <div className="w-[1px] h-3 bg-white/10 mx-1" />
+                                            <span className="text-[10px] font-mono w-10 text-center text-zinc-300 font-bold">{Math.round(zoomLevel)}%</span>
+                                            <div className="w-[1px] h-3 bg-white/10 mx-1" />
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-white" onClick={() => handleZoom('in')}><Plus size={14} /></Button>
                                         </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-[9px] uppercase font-black text-zinc-500">Text to Video</Label>
-                                            <textarea
-                                                placeholder="Describe a cinematic scene..."
-                                                className="w-full h-24 bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-white focus:border-blue-500/50 outline-none resize-none"
-                                            />
-                                            <Button className="w-full bg-blue-600 hover:bg-blue-500 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl shadow-lg shadow-blue-500/20">
-                                                Generate 5s Clip
+                                        <div className="hidden sm:flex items-center gap-1">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg" onClick={() => handleZoom('fit')} title="Zoom to Fit"><Monitor size={14} /></Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg" onClick={() => handleZoom('100')} title="Actual Size (100%)"><Square size={14} /></Button>
+                                        </div>
+                                        <div className="w-[1px] h-4 bg-white/5 mx-2 hidden sm:block" />
+                                        <div className="flex items-center gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => setView('blank-setup')} className="h-7 text-[10px] text-zinc-400 hover:text-white px-2 rounded-md hover:bg-white/5 flex items-center gap-1">
+                                                <Layout size={12} />
+                                                <span>Resize Canvas</span>
                                             </Button>
                                         </div>
                                     </div>
-
-                                    <div className="space-y-4 pt-4 border-t border-white/5">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <History size={16} className="text-emerald-400" />
-                                            <span className="text-[10px] uppercase font-black tracking-widest text-white">Content Planner</span>
-                                        </div>
+                                    <div className="flex items-center gap-2 min-w-fit">
+                                        {isSelectionActive && (
+                                            <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 rounded-lg p-0.5 px-2 animate-in fade-in">
+                                                <Sparkles size={12} className="text-blue-400" />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">Object Active</span>
+                                            </div>
+                                        )}
                                         <Button
-                                            onClick={() => toast.info("Social Media Calendar opened", {
-                                                description: "Sync your designs directly to Instagram & LinkedIn."
-                                            })}
-                                            variant="outline"
-                                            className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-500/0 hover:shadow-emerald-500/20"
-                                        >
-                                            Open Calendar
-                                        </Button>
-                                    </div>
-
-                                    <div className="space-y-4 pt-4 border-t border-white/5">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Sparkles size={16} className="text-purple-400" />
-                                            <span className="text-[10px] uppercase font-black tracking-widest text-white">Pro Studio</span>
-                                        </div>
-                                        <Button onClick={handleClippingMask} variant="outline" className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all shadow-lg shadow-purple-500/0 hover:shadow-purple-500/20">
-                                            Clipping Mask
-                                        </Button>
-                                        <Button variant="outline" className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all shadow-lg shadow-purple-500/0 hover:shadow-purple-500/20">
-                                            Magic Grab
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Layers Panel */}
-                            <div className="h-[400px] border-t border-black/50 flex flex-col bg-[#2d2d2d]">
-                                <div className="h-8 bg-[#3c3c3c] border-b border-black/20 flex items-center px-3 justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LayersIcon size={14} className="text-zinc-500" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#bbb]">Layers</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Plus size={12} className="cursor-pointer hover:text-white" />
-                                        <Trash2 size={12} className="cursor-pointer hover:text-red-500" />
-                                    </div>
-                                </div>
-
-                                {/* Blending Modes & Opacity */}
-                                <div className="p-2 border-b border-black/10 flex items-center gap-2 text-[10px]">
-                                    <select
-                                        onChange={(e) => handleBlendModeChange(e.target.value)}
-                                        className="flex-1 bg-black/30 border border-white/5 rounded px-2 py-1 outline-none text-zinc-300"
-                                    >
-                                        <option>Normal</option>
-                                        <option>Multiply</option>
-                                        <option>Screen</option>
-                                        <option>Overlay</option>
-                                        <option>Darken</option>
-                                        <option>Lighten</option>
-                                    </select>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-zinc-600">Op:</span>
-                                        <span className="text-white w-6 text-right">
-                                            {selectedLayerId ? Math.round((layers.find(l => l.id === selectedLayerId)?.opacity || 0)) : 100}%
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <ScrollArea className="flex-1 bg-[#252525]">
-                                    {layers.map(layer => (
-                                        <div
-                                            key={layer.id}
-                                            onClick={() => {
-                                                const obj = fabricCanvas.current?.getObjects().find((o: any) => (o as any)._layerId === layer.id);
-                                                if (obj) {
-                                                    fabricCanvas.current?.setActiveObject(obj);
-                                                    fabricCanvas.current?.renderAll();
-                                                }
-                                            }}
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
                                             className={cn(
-                                                "flex items-center px-3 py-2 border-b border-black/10 gap-3 group transition-colors cursor-pointer",
-                                                selectedLayerId === layer.id ? "bg-blue-600 text-white" : "hover:bg-white/5"
+                                                "h-8 text-[10px] uppercase font-black tracking-widest px-3 rounded-lg flex items-center gap-2",
+                                                isRightPanelOpen ? "bg-blue-600/10 text-blue-400" : "text-zinc-400 hover:bg-white/5"
                                             )}
                                         >
-                                            <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(layer.id); }} className="hover:text-blue-400">
-                                                    {layer.visible ? <Eye size={12} /> : <EyeOff size={12} className="text-red-500" />}
-                                                </button>
-                                                <button onClick={(e) => { e.stopPropagation(); toggleLayerLock(layer.id); }} className="hover:text-amber-400">
-                                                    {layer.locked ? <Lock size={12} className="text-amber-500" /> : <Unlock size={12} />}
-                                                </button>
-                                            </div>
-                                            <div className="w-10 h-10 bg-black/20 border border-white/5 rounded shrink-0 flex items-center justify-center">
-                                                <ImageIcon size={16} className={cn(selectedLayerId === layer.id ? "text-white/50" : "text-zinc-700")} />
-                                            </div>
-                                            <span className="text-[11px] font-medium truncate">{layer.name}</span>
-                                        </div>
-                                    ))}
-                                </ScrollArea>
+                                            <LayersIcon size={14} />
+                                            <span className="hidden sm:inline">Inspect</span>
+                                        </Button>
+                                    </div>
+                                </div>
 
-                                {/* Layer Actions Footer */}
-                                <div className="h-8 bg-[#333] border-t border-black/20 flex items-center justify-around text-zinc-500">
-                                    <Plus size={14} className="hover:text-white cursor-pointer" />
-                                    <ImageIcon size={14} className="hover:text-white cursor-pointer" />
-                                    <Scissors size={14} className="hover:text-white cursor-pointer" />
-                                    <Trash2 size={14} className="hover:text-zinc-400 cursor-pointer" />
+                                <div className="flex-1 overflow-auto bg-[#1a1a1a] custom-scrollbar selection:bg-none relative h-full">
+                                    <div className="min-h-full min-w-full inline-flex items-center justify-center p-20">
+                                        <CustomContextMenu
+                                            onBringToFront={handleBringToFront}
+                                            onSendToBack={handleSendToBack}
+                                            onBringForward={handleBringForward}
+                                            onSendBackward={handleSendBackward}
+                                            onDuplicate={handleDuplicate}
+                                            onDelete={deleteSelectedObject}
+                                            onLock={handleLock}
+                                            onUnlock={handleUnlock}
+                                            isLocked={selectedObjectProps.isLocked || false}
+                                            zIndex={selectedObjectProps.zIndex || 0}
+                                            onZIndexChange={handleZIndexChange}
+                                            onRemoveBackground={handleRemoveBackground}
+                                            onSaveToAssets={handleSaveToAssets}
+                                            onCopy={() => {
+                                                const activeObj = fabricCanvas.current?.getActiveObject();
+                                                if (activeObj) {
+                                                    activeObj.clone().then((cloned: any) => {
+                                                        (window as any)._clipboard = cloned;
+                                                    });
+                                                    toast.success("Copied to clipboard");
+                                                }
+                                            }}
+                                            onPaste={() => {
+                                                if ((window as any)._clipboard) {
+                                                    (window as any)._clipboard.clone().then((clonedObj: any) => {
+                                                        fabricCanvas.current?.discardActiveObject();
+                                                        clonedObj.set({
+                                                            left: clonedObj.left + 10,
+                                                            top: clonedObj.top + 10,
+                                                            evented: true,
+                                                            _layerId: Math.random()
+                                                        });
+                                                        if (clonedObj.type === 'activeSelection') {
+                                                            clonedObj.canvas = fabricCanvas.current;
+                                                            clonedObj.forEachObject((obj: any) => {
+                                                                fabricCanvas.current?.add(obj);
+                                                            });
+                                                            clonedObj.setCoords();
+                                                        } else {
+                                                            fabricCanvas.current?.add(clonedObj);
+                                                        }
+                                                        fabricCanvas.current?.setActiveObject(clonedObj);
+                                                        fabricCanvas.current?.requestRenderAll();
+                                                        toast.success("Pasted");
+                                                    });
+                                                }
+                                            }}
+                                            onGroup={handleGroup}
+                                            onUngroup={handleUngroup}
+                                        >
+                                            <div className="shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-black/50 bg-white">
+                                                <canvas ref={canvasRef} />
+                                            </div>
+                                        </CustomContextMenu>
+                                    </div>
                                 </div>
                             </div>
+
+                            {!isMobile && isRightPanelOpen && (
+                                <div onMouseDown={startResizing} className="w-1 bg-black/50 border-l border-white/5 hover:bg-transparent hover:border-blue-500 cursor-col-resize transition-colors z-30" />
+                            )}
+
+                            {isRightPanelOpen && (
+                                <div style={{ width: isMobile ? '100%' : rightPanelWidth }} className={cn("h-full bg-[#2d2d2d] shrink-0 z-40 transition-all", isMobile && "fixed inset-0 pt-8")}>
+                                    {isMobile && <Button variant="ghost" size="icon" className="absolute top-2 right-2 text-white z-50 h-8 w-8 bg-black/20 rounded-full" onClick={() => setIsRightPanelOpen(false)}><X className="rotate-45" size={20} /></Button>}
+                                    <RightPanel
+                                        activePanel={activePanel}
+                                        setActivePanel={setActivePanel}
+                                        selectedObjectProps={selectedObjectProps}
+                                        updateActiveObject={updateActiveObject}
+                                        applyFilter={applyFilter}
+                                        fabricCanvasRef={fabricCanvas}
+                                        handleClippingMask={handleClippingMask}
+                                        layers={layers}
+                                        selectedLayerId={selectedLayerId}
+                                        onLayerSelect={(id) => {
+                                            const obj = fabricCanvas.current?.getObjects().find((o: any) => o._layerId === id);
+                                            if (obj) {
+                                                fabricCanvas.current?.setActiveObject(obj);
+                                                fabricCanvas.current?.requestRenderAll();
+                                                setSelectedLayerId(id);
+                                            }
+                                        }}
+                                        onLayerToggle={toggleLayerVisibility}
+                                        onLayerLock={toggleLayerLock}
+                                        onLayerDelete={handleLayerDelete}
+                                        onBlendModeChange={handleBlendModeChange}
+                                        onAddAIImage={handleAddAIImage}
+                                        customAssets={customAssets}
+                                        onDeleteAsset={handleDeleteAsset}
+                                        isSelectionActive={isSelectionActive}
+                                        onTextToVector={handleTextToVector}
+                                        onDataToViz={handleDataToViz}
+                                        isMobile={isMobile}
+                                    />
+                                </div>
+                            )}
                         </div>
-                    </ResizablePanel>
-                </ResizablePanelGroup>
+                    </SidebarInset>
+                </SidebarProvider>
 
-                {/* 6. STATUS BAR */}
-                <div className="h-6 bg-blue-600 flex items-center px-4 justify-between text-[10px] text-white/90 font-medium">
-                    <div className="flex gap-4">
-                        <span>Zoom: {zoomLevel}%</span>
-                        <span>Layer: {layers.find(l => l.id === selectedLayerId)?.name || 'None'}</span>
-                    </div>
-                    <span>Ready</span>
-                </div>
-
-                {/* MAGIC SWITCH MODAL */}
-                <AnimatePresence>
-                    {showMagicSwitch && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/60">
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="max-w-2xl w-full bg-[#1e1e1e] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden"
-                            >
-                                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-[#252525]">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-emerald-500/20 rounded-xl">
-                                            <Sparkles size={20} className="text-emerald-400" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-black text-white">Magic Switch</h2>
-                                            <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Intelligent Resize Engine</p>
-                                        </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setShowMagicSwitch(false)} className="rounded-full hover:bg-white/5">
-                                        <X size={18} />
-                                    </Button>
-                                </div>
-
-                                <div className="p-8 grid grid-cols-2 gap-4">
-                                    {[
-                                        { label: 'Instagram Reel', w: 1080, h: 1920, icon: <Monitor className="rotate-90" size={16} /> },
-                                        { label: 'LinkedIn Banner', w: 1584, h: 396, icon: <Monitor size={16} /> },
-                                        { label: 'YouTube Thumbnail', w: 1280, h: 720, icon: <Monitor size={16} /> },
-                                        { label: 'A4 Document', w: 2480, h: 3508, icon: <Monitor size={16} /> },
-                                        { label: 'Facebook Post', w: 1200, h: 630, icon: <ImageIcon size={16} /> },
-                                        { label: 'Square Post', w: 1080, h: 1080, icon: <Square size={16} /> }
-                                    ].map(preset => (
-                                        <button
-                                            key={preset.label}
-                                            onClick={() => handleResize(preset)}
-                                            className="group p-4 bg-white/5 border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 rounded-2xl flex items-center gap-4 transition-all text-left"
-                                        >
-                                            <div className="p-3 bg-white/5 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all text-zinc-400">
-                                                {preset.icon}
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-bold text-white mb-0.5">{preset.label}</div>
-                                                <div className="text-[10px] text-zinc-600 font-mono">{preset.w} x {preset.h} px</div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="p-8 bg-[#181818] flex justify-end gap-3">
-                                    <Button variant="ghost" onClick={() => setShowMagicSwitch(false)} className="text-zinc-500">Cancel</Button>
-                                    <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-xs px-8 h-10 rounded-xl">Custom Size</Button>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
+                <MagicSwitch isOpen={showMagicSwitch} onClose={() => setShowMagicSwitch(false)} onResize={handleResize} />
             </div>
         )
     }
 
+    // Default Gateway View
     return (
-        <div className="fixed inset-0 bg-[#121212] flex items-center justify-center p-6 text-white font-sans">
-            <AnimatePresence mode="wait">
-                {view === 'choice' && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8"
-                    >
-                        <div className="space-y-6">
-                            <div className="inline-block p-3 bg-blue-600/10 border border-blue-600/20 rounded-2xl mb-4">
-                                <ImageIcon className="text-blue-500" size={32} />
-                            </div>
-                            <h1 className="text-5xl font-black tracking-tighter">Image Architect <span className="text-blue-500">Studio</span></h1>
-                            <p className="text-zinc-400 text-lg leading-relaxed max-w-sm">
-                                Professional-grade image editing and generative manipulation at your fingertips.
-                            </p>
-                            <div className="flex gap-2">
-                                <div className="h-1.5 w-8 bg-blue-500 rounded-full" />
-                                <div className="h-1.5 w-1.5 bg-zinc-800 rounded-full" />
-                                <div className="h-1.5 w-1.5 bg-zinc-800 rounded-full" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="group p-8 bg-zinc-900 border border-white/5 rounded-3xl text-left hover:border-blue-500/50 hover:bg-zinc-800/50 transition-all"
-                            >
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="p-4 bg-blue-500/10 rounded-2xl group-hover:bg-blue-500 group-hover:text-white transition-all">
-                                        <Upload size={24} />
-                                    </div>
-                                    <ArrowRight size={20} className="text-zinc-700 group-hover:text-blue-500 transition-colors" />
-                                </div>
-                                <h3 className="text-2xl font-bold mb-2">Upload Image</h3>
-                                <p className="text-zinc-500 text-sm">Start editing from a local JPG, PNG, or PSD file.</p>
-                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                            </button>
-
-                            <button
-                                onClick={() => setView('blank-setup')}
-                                className="group p-8 bg-zinc-900 border border-white/5 rounded-3xl text-left hover:border-emerald-500/50 hover:bg-zinc-800/50 transition-all"
-                            >
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="p-4 bg-emerald-500/10 rounded-2xl group-hover:bg-emerald-500 group-hover:text-white transition-all text-emerald-500 group-hover:text-white">
-                                        <Plus size={24} />
-                                    </div>
-                                    <ArrowRight size={20} className="text-zinc-700 group-hover:text-emerald-500 transition-colors" />
-                                </div>
-                                <h3 className="text-2xl font-bold mb-2 text-white">Blank Canvas</h3>
-                                <p className="text-zinc-500 text-sm">Create a new workspace with custom dimensions.</p>
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-
-                {view === 'blank-setup' && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="max-w-md w-full bg-zinc-900 border border-white/10 rounded-[2.5rem] p-10 space-y-8 shadow-2xl"
-                    >
-                        <div className="space-y-2">
-                            <h2 className="text-3xl font-black tracking-tight">Canvas Setup</h2>
-                            <p className="text-zinc-500 text-sm font-medium uppercase tracking-[0.2em]">New Document Properties</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                                <Label className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Width <span className="text-zinc-400">(PX)</span></Label>
-                                <Input
-                                    type="number"
-                                    value={dimensions.width}
-                                    onChange={(e) => setDimensions({ ...dimensions, width: parseInt(e.target.value) })}
-                                    className="h-14 bg-black/40 border-white/5 text-lg font-bold rounded-2xl focus:ring-emerald-500/20 items-center justify-center flex"
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                <Label className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Height <span className="text-zinc-400">(PX)</span></Label>
-                                <Input
-                                    type="number"
-                                    value={dimensions.height}
-                                    onChange={(e) => setDimensions({ ...dimensions, height: parseInt(e.target.value) })}
-                                    className="h-14 bg-black/40 border-white/5 text-lg font-bold rounded-2xl focus:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Presets</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { label: 'FHD (1080p)', w: 1920, h: 1080 },
-                                    { label: '4K (UHD)', w: 3840, h: 2160 },
-                                    { label: 'Square', w: 1080, h: 1080 },
-                                    { label: 'Mobile', w: 1080, h: 1920 }
-                                ].map(preset => (
-                                    <button
-                                        key={preset.label}
-                                        onClick={() => setDimensions({ width: preset.w, height: preset.h })}
-                                        className="h-12 bg-white/5 border border-white/5 hover:border-white/20 rounded-xl text-xs font-bold transition-all"
-                                    >
-                                        {preset.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4 pt-4">
-                            <Button variant="ghost" onClick={() => setView('choice')} className="h-14 px-6 rounded-2xl text-zinc-500 hover:text-white">
-                                Back
-                            </Button>
-                            <Button onClick={() => setView('editor')} className="h-14 flex-1 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg shadow-xl shadow-emerald-600/20">
-                                Create Workspace
-                            </Button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+        <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-8 selection:bg-blue-500/30">
+            <GatewayModal
+                view={view}
+                setView={setView}
+                dimensions={dimensions}
+                setDimensions={setDimensions}
+                handleFileUpload={handleFileUpload}
+                fileInputRef={fileInputRef}
+                recentProject={recentProject}
+                onLoadRecent={loadRecentProject}
+            />
         </div>
     )
 }
+

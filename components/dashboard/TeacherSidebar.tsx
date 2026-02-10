@@ -57,6 +57,7 @@ export function TeacherSidebar({ ...props }: React.ComponentProps<typeof Sidebar
             label: "Instructor Node",
             items: [
                 { icon: LayoutDashboard, label: "Overview", href: "/TeacherDashboard" },
+                { icon: Sparkles, label: "Image Editor", href: "/architect-studio" },
             ]
         },
         {

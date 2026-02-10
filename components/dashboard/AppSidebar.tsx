@@ -47,6 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 { icon: Users, label: "Student Roster", href: "/PrincipalDashboard/students" },
                 { icon: FileSpreadsheet, label: "Academic Records", href: "/PrincipalDashboard/records" },
                 { icon: FileText, label: "Past Papers", href: "/PrincipalDashboard/past-papers" },
+                { icon: Sparkles, label: "Image Editor", href: "/PrincipalDashboard/ai-logs/view-paper/architect" },
             ]
         },
         {
@@ -93,10 +94,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     return (
                                         <SidebarMenuItem key={item.label}>
                                             <SidebarMenuButton
-                                                render={<Link href={item.href} />}
                                                 isActive={isActive}
                                                 tooltip={item.label}
                                                 className={isActive ? 'bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600/20 hover:text-emerald-400' : 'text-zinc-500 hover:text-zinc-200'}
+                                                render={<Link href={item.href} />}
                                             >
                                                 <item.icon className={item.activeClass} />
                                                 <span>{item.label}</span>
