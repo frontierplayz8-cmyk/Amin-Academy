@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { DocsSidebar } from "@/components/docs/DocsSidebar";
+import { UserGuideSection } from "@/components/docs/UserGuideSection";
 
 const DocumentationPage = () => {
     const [activeSection, setActiveSection] = useState("getting-started");
@@ -153,6 +154,9 @@ const DocumentationPage = () => {
                                     </AccordionItem>
                                 </Accordion>
                             </section>
+
+                            {/* USER GUIDE SECTIONS */}
+                            <UserGuideSection />
 
                             {/* Teacher Tools Section */}
                             <section id="teacher-tools" className="scroll-mt-32 space-y-8">

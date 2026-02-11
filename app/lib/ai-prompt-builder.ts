@@ -110,6 +110,80 @@ export const buildInternetSystemPrompt = (config: PromptConfig): string => {
       `;
   }
 
+  // Check for Math/Science subjects to add LaTeX instructions
+  const isScienceOrMath = ['mathematics', 'physics', 'chemistry', 'biology', 'computer science'].some(s => subject?.toLowerCase().includes(s));
+
+  if (isScienceOrMath) {
+    specificInstructions += `
+[MATH/SCIENCE SPECIFIC INSTRUCTIONS]
+- **FORMULAS & EQUATIONS**: You MUST use LaTeX formatting for ALL math formulas, equations, and special symbols.
+- Enclose LaTeX in single dollar signs, e.g., $E=mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$.
+- Do NOT use plain text for formulas (e.g., do not write "x^2", write "$x^2$").
+- For chemical equations, use proper notation, e.g., $H_2O$, $CO_2$.
+- ensure that backslashes are properly escaped in the JSON string (e.g., "\\\\frac" instead of "\\frac").
+    `;
+  }
+
+  // Check for Tarjama-tul-Quran subject (handle different formats)
+  const isQuranSubject = subject?.toLowerCase().replace(/[_\s-]/g, '') === 'tarjamatulquran';
+
+  if (isQuranSubject) {
+    specificInstructions = `
+[TARJAMA-TUL-QURAN SPECIFIC INSTRUCTIONS]
+- **LANGUAGE**: This is a Quranic Translation paper. Use Arabic for Quranic text and Urdu for translations and instructions.
+- **CRITICAL**: You MUST generate and populate the "quranData" object with vocabulary and verses.
+
+- **Section A (Objective - MCQs)**: (Count: ${mcqCount})
+  - Generate MCQs about Quranic vocabulary, translation, and comprehension.
+  - Each MCQ should test understanding of Quranic Arabic words, meanings, or translation concepts.
+  - Output in "mcqs" array with bilingual options (Arabic in "en", Urdu in "ur").
+
+- **Section B - Question 3 (Quranic Vocabulary - 5 Marks)**:
+  - Provide 8 Arabic words from the Quran with their Urdu meanings.
+  - Output in "quranData.vocabulary" as an array of objects: [{ "arabic": "...", "urdu": "..." }]
+  - Use authentic Quranic vocabulary from ${scope}.
+  - Example: { "arabic": "الرَّحْمَٰنِ", "urdu": "نہایت مہربان" }
+
+- **Section B - Question 4 (Quranic Translation - 15 Marks)**:
+  - Provide 3 Quranic verses (ayat) in Arabic with their Urdu translations.
+  - Output in "quranData.verses" as an array of objects: [{ "arabic": "...", "urdu": "..." }]
+  - Use complete verses from ${scope}.
+  - Arabic text should be properly formatted with diacritical marks (tashkeel).
+  - Urdu translations should be idiomatic and accurate.
+  - Example: { "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "urdu": "اللہ کے نام سے جو نہایت مہربان رحم کرنے والا ہے" }
+
+- **Short Questions**: (Count: ${shortCount})
+  - Generate questions about Quranic themes, context, and interpretation.
+  - Questions should be in Urdu.
+  - Output in "shortQuestions" array.
+
+- **Long Questions**: (Count: ${longCount})
+  - Generate essay-type questions about Quranic topics, lessons, and themes.
+  - Topics should relate to ${scope}.
+  - Output in "longQuestions" array.
+
+**CRITICAL OUTPUT REQUIREMENT**:
+You MUST include a "quranData" object in your JSON response with this structure:
+"quranData": {
+  "vocabulary": [
+    { "arabic": "Arabic word 1", "urdu": "Urdu meaning 1" },
+    { "arabic": "Arabic word 2", "urdu": "Urdu meaning 2" },
+    { "arabic": "Arabic word 3", "urdu": "Urdu meaning 3" },
+    { "arabic": "Arabic word 4", "urdu": "Urdu meaning 4" },
+    { "arabic": "Arabic word 5", "urdu": "Urdu meaning 5" },
+    { "arabic": "Arabic word 6", "urdu": "Urdu meaning 6" },
+    { "arabic": "Arabic word 7", "urdu": "Urdu meaning 7" },
+    { "arabic": "Arabic word 8", "urdu": "Urdu meaning 8" }
+  ],
+  "verses": [
+    { "arabic": "Complete Arabic verse 1 with tashkeel", "urdu": "Complete Urdu translation 1" },
+    { "arabic": "Complete Arabic verse 2 with tashkeel", "urdu": "Complete Urdu translation 2" },
+    { "arabic": "Complete Arabic verse 3 with tashkeel", "urdu": "Complete Urdu translation 3" }
+  ]
+}
+      `;
+  }
+
   return `
 [ROLE]
 You are a Senior Exam Content Developer for Amin Model High School and Science Academy. Your goal is to generate a professional, high-quality exam paper that is a 1:1 replica of official Punjab Board exam patterns.
@@ -171,6 +245,23 @@ Return ONLY a JSON object:
     "khatDarkhwast": { "type": "Letter", "prompt": "..." },
     "dialogueStory": { "type": "Dialogue", "prompt": "..." },
     "sentenceCorrection": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]
+  },
+  "quranData": {
+    "vocabulary": [
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." }
+    ],
+    "verses": [
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." },
+      { "arabic": "...", "urdu": "..." }
+    ]
   }
 }
 

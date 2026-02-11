@@ -79,6 +79,10 @@ interface PaperData {
         voice?: Array<{ active: string, passive: string }>
         summary?: { topic: string, poem: string }
     }
+    quranData?: {
+        vocabulary: Array<{ arabic: string, urdu: string }>
+        verses: Array<{ arabic: string, urdu: string }>
+    }
 }
 
 function TeacherPaperViewer() {

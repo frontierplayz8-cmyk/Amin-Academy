@@ -34,6 +34,16 @@ const navigation = [
         ]
     },
     {
+        group: "User Guide",
+        items: [
+            { id: "user-roles", title: "User Roles & Permissions", icon: ShieldCheck },
+            { id: "paper-generation", title: "AI Paper Generation", icon: Sparkles },
+            { id: "paper-architect", title: "Paper Architect & Editor", icon: BookOpen },
+            { id: "student-records", title: "Student Records", icon: Terminal },
+            { id: "faq", title: "FAQ", icon: MessageSquare },
+        ]
+    },
+    {
         group: "Core Features",
         items: [
             { id: "teacher-tools", title: "Teacher Workflows", icon: BookOpen },

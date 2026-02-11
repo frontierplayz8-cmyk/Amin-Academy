@@ -4,6 +4,8 @@ import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import React from 'react'
 import { EditableText } from './EditableText'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 interface PaperRendererProps {
     paperData: any
@@ -18,6 +20,35 @@ const safeRender = (val: any) => {
     if (!val) return "";
     if (typeof val === 'string') return val;
     return String(val);
+};
+
+const renderTextWithMath = (text: string) => {
+    if (!text) return null;
+
+    // Split text by $ delimiters for math mode
+    const parts = text.split(/(\$.*?\$)/g);
+
+    return parts.map((part, i) => {
+        if (part.startsWith('$') && part.endsWith('$')) {
+            const math = part.slice(1, -1);
+            try {
+                return (
+                    <span
+                        key={i}
+                        dangerouslySetInnerHTML={{
+                            __html: katex.renderToString(math, {
+                                throwOnError: false,
+                                displayMode: false
+                            })
+                        }}
+                    />
+                );
+            } catch (e) {
+                return <span key={i} className="text-red-500">{part}</span>;
+            }
+        }
+        return <span key={i}>{part}</span>;
+    });
 };
 
 export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionClick, sectionStyles = {}, isEditing = false, setPaperData }: PaperRendererProps) {
@@ -60,24 +91,48 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
 
     const renderWords = (parentId: string, text: string, style: any = {}) => {
         if (!text) return null;
-        return text.split(' ').map((word, i) => {
-            const wordId = `${parentId}-w-${i}`;
+
+        // If it looks like math, don't split by words to avoid breaking equations
+        if (text.includes('$')) {
             return (
-                <span
-                    key={i}
-                    id={wordId}
+                <div
+                    id={parentId}
                     onClick={(e) => {
                         e.stopPropagation();
-                        onSectionClick?.(wordId, e);
+                        onSectionClick?.(parentId, e);
                     }}
                     className={cn(
-                        "inline-block hover:bg-emerald-500/10 rounded-sm transition-all cursor-pointer",
-                        selectedSectionIds.includes(wordId) && "ring-1 ring-emerald-500 bg-emerald-500/5 px-0.5"
+                        "inline hover:bg-emerald-500/10 rounded-sm transition-all cursor-pointer",
+                        selectedSectionIds.includes(parentId) && "ring-1 ring-emerald-500 bg-emerald-500/5 px-0.5"
                     )}
-                    style={getSectionStyle(wordId)}
+                    style={{ ...getSectionStyle(parentId), ...style }}
                 >
-                    {word}{' '}
-                </span>
+                    {renderTextWithMath(text)}
+                </div>
+            );
+        }
+
+        const words = text.split(' ');
+        return words.map((word, i) => {
+            const wordId = `${parentId}-w-${i}`;
+            return (
+                <React.Fragment key={i}>
+                    <span
+                        id={wordId}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSectionClick?.(wordId, e);
+                        }}
+                        className={cn(
+                            "inline hover:bg-emerald-500/10 rounded-sm transition-all cursor-pointer",
+                            selectedSectionIds.includes(wordId) && "ring-1 ring-emerald-500 bg-emerald-500/5 px-0.5"
+                        )}
+                        style={getSectionStyle(wordId)}
+                    >
+                        {renderTextWithMath(word)}
+                    </span>
+                    {i < words.length - 1 && ' '}
+                </React.Fragment>
             );
         });
     }
@@ -102,6 +157,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                     isSelected && "ring-2 ring-emerald-500 ring-offset-1 rounded-sm bg-emerald-500/5",
                     "transition-all"
                 )}
+                renderValue={(val) => renderWords(id, val, props.style)}
                 {...props}
             />
         )
@@ -251,9 +307,16 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
 
     const updateShortQuestion = (idx: number, field: 'en' | 'ur', val: string) => {
         if (!setPaperData) return
-        const newSqs = [...paperData.shortQuestions]
+        const newSqs = [...(paperData.shortQuestions || [])]
         newSqs[idx] = { ...newSqs[idx], [field]: val }
         setPaperData({ ...paperData, shortQuestions: newSqs })
+    }
+
+    const updateLq = (idx: number, field: 'en' | 'ur', val: string) => {
+        if (!setPaperData) return
+        const newLqs = [...(paperData.longQuestions || [])]
+        newLqs[idx] = { ...newLqs[idx], [field]: val }
+        setPaperData({ ...paperData, longQuestions: newLqs })
     }
 
     const convertNumberToWord = (num: number) => {
@@ -315,24 +378,37 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
             {/* Watermark Overlay */}
             {(paperData.watermark?.text || paperData.watermark?.image) && (
                 <div
-                    className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden z-0"
-                    style={{ opacity: paperData.watermark?.opacity || 0.1 }}
+                    className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"
+                    style={{
+                        opacity: paperData.watermark?.opacity || 0.1,
+                        zIndex: paperData.watermark?.zIndex ?? 0
+                    }}
                 >
-                    {paperData.watermark?.image ? (
-                        <img
-                            src={paperData.watermark.image}
-                            alt="Watermark"
-                            className="w-1/2 h-auto"
-                            style={{ transform: `rotate(${paperData.watermark?.rotation || -45}deg)` }}
-                        />
-                    ) : (
-                        <div
-                            className="text-[120px] font-black uppercase tracking-[20px] select-none text-zinc-300"
-                            style={{ transform: `rotate(${paperData.watermark?.rotation || -45}deg)` }}
-                        >
-                            {paperData.watermark?.text}
-                        </div>
-                    )}
+                    <div style={{
+                        transform: `
+                            rotate(${paperData.watermark?.rotation || -45}deg) 
+                            scale(${paperData.watermark?.scale || 1})
+                            translate(${paperData.watermark?.hOffset || 0}px, ${paperData.watermark?.vOffset || 0}px)
+                        `,
+                        filter: `
+                            ${paperData.watermark?.grayscale ? 'grayscale(1)' : ''} 
+                            ${paperData.watermark?.invert ? 'invert(1)' : ''}
+                        `.trim()
+                    }}>
+                        {paperData.watermark?.image ? (
+                            <img
+                                src={paperData.watermark.image}
+                                alt="Watermark"
+                                className="max-w-[80%] h-auto select-none"
+                            />
+                        ) : (
+                            <div
+                                className="text-[120px] font-black uppercase tracking-[20px] select-none text-zinc-300"
+                            >
+                                {paperData.watermark?.text}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -342,7 +418,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
             >
                 <Reorder.Group
                     axis="y"
-                    values={paperData.sectionOrder || ['header', 'mcqs', 'subjective-header', 'short-questions', 'english-special-sections', 'urdu-special-sections', 'long-questions']}
+                    values={paperData.sectionOrder || ['header', 'mcqs', 'subjective-header', 'short-questions', 'quran-vocabulary', 'quran-translation', 'english-special-sections', 'urdu-special-sections', 'long-questions']}
                     onReorder={(newOrder) => {
                         if (setPaperData) {
                             setPaperData({ ...paperData, sectionOrder: newOrder });
@@ -351,7 +427,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                     className="relative"
                 >
                     {/* Dynamic Section Rendering */}
-                    {(paperData.sectionOrder || ['header', 'mcqs', 'subjective-header', 'short-questions', 'english-special-sections', 'urdu-special-sections', 'long-questions']).map((sectionKey: string) => {
+                    {(paperData.sectionOrder || ['header', 'mcqs', 'subjective-header', 'short-questions', 'quran-vocabulary', 'quran-translation', 'english-special-sections', 'urdu-special-sections', 'long-questions']).map((sectionKey: string) => {
                         const renderSectionContent = () => {
                             if (sectionKey === 'header') {
                                 return (
@@ -384,18 +460,24 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                             </div>
                                                         </div>
 
-                                                        <div className="text-center overflow-hidden w-full">
-                                                            <h1 className="text-2xl font-black uppercase underline decoration-double underline-offset-4 leading-tight mb-2">
-                                                                {isEditing && !selectedSectionIds.includes('header_school') ?
-                                                                    <div id="header_school" onClick={(e) => { e.stopPropagation(); onSectionClick?.('header_school', e); }}>
-                                                                        {renderWords('header_school', paperData.headerDetails?.schoolName || "")}
-                                                                    </div>
-                                                                    : renderEditable('header_school', paperData.headerDetails?.schoolName || "Amin Model High School and Science Academy", (val) => updateHeaderDetail('schoolName', val))
-                                                                }
+                                                        <div className="text-center overflow-hidden w-full flex flex-col items-center">
+                                                            <h1 className="text-[32px] md:text-[40px] font-black uppercase tracking-tight leading-none mb-2 text-zinc-900">
+                                                                {renderEditable('header_school', paperData.headerDetails?.schoolName || "AMIN MODEL HIGH SCHOOL AND SCIENCE ACADEMY", (val) => updateHeaderDetail('schoolName', val))}
                                                             </h1>
-                                                            <p className="text-md font-bold text-zinc-800">
-                                                                {renderEditable('header_system', paperData.headerDetails?.systemBadge || "BISE REPLICA EXAMINATION SYSTEM", (val) => updateHeaderDetail('systemBadge', val))}
-                                                            </p>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="h-[1px] w-12 bg-zinc-300" />
+                                                                    <span className="text-[14px] md:text-[16px] font-bold uppercase tracking-[0.4em] text-zinc-500 drop-shadow-sm">
+                                                                        {renderEditable('header_system', paperData.headerDetails?.systemBadge || "BISE REPLICA EXAMINATION SYSTEM", (val) => updateHeaderDetail('systemBadge', val))}
+                                                                    </span>
+                                                                    <div className="h-[1px] w-12 bg-zinc-300" />
+                                                                </div>
+                                                                {paperData.paperInfo.subject === "Tarjama-tul-Quran" && (
+                                                                    <div className="font-urdu text-[24px] font-bold mt-2 text-emerald-800">
+                                                                        ترجمۃ القرآن المجید
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -438,6 +520,11 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                     <div key="mcqs" className="section-container">
                                         {wrapSection('mcqs', (
                                             <div className="mb-8">
+                                                {/* Pre-MCQ Note Section */}
+                                                <div className="mb-4 italic text-[12px] text-zinc-500 text-center">
+                                                    {renderEditable('mcq_note', getLabel('mcq_note', 'Instructions: Read the questions carefully and select the best option.'), (val) => updateLabel('mcq_note', val), { className: "italic" })}
+                                                </div>
+
                                                 <div className="text-[12px] font-bold mb-2 border border-black p-1 text-center">
                                                     {renderEditable('mcq_instruction', paperData.headerDetails?.mcqInstruction || "Note: You have four choices for each objective type question as A, B, C and D. The choice which you think is correct, fill that circle in front of that question number.", (val) => updateHeaderDetail('mcqInstruction', val), { tagName: "p" })}
                                                 </div>
@@ -534,7 +621,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                                                 <p className="font-bold text-[14px] mb-2 text-red-500">
                                                                                     {renderEditable('grp_misc', getLabel('grp_misc', 'Miscellaneous Questions'), (val) => updateLabel('grp_misc', val))}
                                                                                 </p>
-                                                                                {remainingMcqs.map((mcq: any, i: number) => {
+                                                                                {remainingMcqs.map((mcq: any) => {
                                                                                     const originalIdx = paperData.mcqs.indexOf(mcq);
                                                                                     return (
                                                                                         <div key={originalIdx} className="page-break-inside-avoid border-b border-dotted border-zinc-300 pb-4 mb-2">
@@ -634,6 +721,65 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                             });
                                                         }
 
+                                                        // Turjama-tul-Quran MCQ Logic
+                                                        if (paperData.paperInfo.subject.toLowerCase().replace(/[_\s-]/g, '') === 'tarjamatulquran') {
+                                                            return Array.from({ length: Math.ceil(paperData.mcqs.length / 2) }).map((_, rowIndex) => {
+                                                                const firstIdx = rowIndex * 2;
+                                                                const secondIdx = firstIdx + 1;
+                                                                const mcqsInRow = [paperData.mcqs[firstIdx], paperData.mcqs[secondIdx]].filter(Boolean);
+
+                                                                return (
+                                                                    <div key={rowIndex} className="flex gap-4 mb-4 page-break-inside-avoid">
+                                                                        {mcqsInRow.map((mcq: any, i: number) => {
+                                                                            const originalIdx = firstIdx + i;
+                                                                            const mcqItemId = `mcq-quran-${originalIdx}`;
+                                                                            return (
+                                                                                <div key={originalIdx} id={mcqItemId}
+                                                                                    onClick={(e) => { e.stopPropagation(); onSectionClick?.(mcqItemId, e); }}
+                                                                                    className={cn(
+                                                                                        "flex-1 border border-zinc-200 rounded p-2 cursor-pointer hover:bg-zinc-50/50 transition-colors",
+                                                                                        selectedSectionIds.includes(mcqItemId) && "ring-2 ring-emerald-500 ring-inset"
+                                                                                    )}
+                                                                                    style={getSectionStyle(mcqItemId)}
+                                                                                >
+                                                                                    <div className="mb-2 border-b border-dotted border-zinc-300 pb-2">
+                                                                                        <div className="flex justify-between items-start mb-1" dir="rtl">
+                                                                                            <span className="font-bold ml-2">({originalIdx + 1})</span>
+                                                                                            <div className="flex-1 text-right font-urdu text-[16px]">
+                                                                                                {renderEditable(`mcq-ur-${originalIdx}-q`, mcq.ur, (val) => updateMcq(originalIdx, 'ur', val), { className: "font-urdu", dir: "rtl" })}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="text-left font-arabic text-[18px] text-zinc-600 pl-8 mt-1" dir="rtl">
+                                                                                            {renderEditable(`mcq-en-${originalIdx}-q`, mcq.en, (val) => updateMcq(originalIdx, 'en', val), { className: "font-arabic", dir: "rtl" })}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                                        {mcq.options.map((opt: any, oIdx: number) => {
+                                                                                            const optId = `mcq-quran-${originalIdx}-opt-${oIdx}`;
+                                                                                            return (
+                                                                                                <div key={oIdx} id={optId}
+                                                                                                    onClick={(e) => { e.stopPropagation(); onSectionClick?.(optId, e); }}
+                                                                                                    className={cn(
+                                                                                                        "text-[14px] text-right font-urdu border border-zinc-100 rounded px-1 hover:bg-emerald-50/30 cursor-pointer",
+                                                                                                        selectedSectionIds.includes(optId) && "ring-1 ring-emerald-400 bg-emerald-500/5"
+                                                                                                    )}
+                                                                                                    style={getSectionStyle(optId)}
+                                                                                                    dir="rtl"
+                                                                                                >
+                                                                                                    <span className="font-bold ml-1 text-[12px] text-emerald-600">({['الف', 'ب', 'ج', 'د'][oIdx]})</span>
+                                                                                                    {renderEditable(optId, opt.ur, (val) => updateMcqOption(originalIdx, oIdx, 'ur', val), { className: "font-urdu inline", dir: "rtl" })}
+                                                                                                </div>
+                                                                                            )
+                                                                                        })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
+                                                            });
+                                                        }
+
                                                         // Generic MCQ fallback Logic
                                                         const remainingMcqs = paperData.mcqs.filter((_: any, idx: number) => !usedMcqIndices.has(idx));
                                                         return remainingMcqs.map((mcq: any) => {
@@ -691,6 +837,11 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                     <div key="short-questions" className="section-container">
                                         {wrapSection('short-questions', (
                                             <div className="mb-6">
+                                                {/* Pre-Question Note Section */}
+                                                <div className="mb-4 italic text-[13px] text-zinc-600 bg-zinc-50/50 p-2 rounded border-l-4 border-zinc-200 print:bg-transparent print:border-l-0">
+                                                    {renderEditable('sq_note', getLabel('sq_note', 'Note: Answer the following questions carefully.'), (val) => updateLabel('sq_note', val), { className: "italic" })}
+                                                </div>
+
                                                 {(() => {
                                                     if (paperData.paperInfo.subject === "Urdu") {
                                                         return (
@@ -740,40 +891,60 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                     return chunks.map((chunk, cIdx) => {
                                                         const questionNumber = 2 + cIdx
                                                         const attemptCount = Math.floor(chunk.length * 2 / 3)
-
                                                         const chunkId = `q-chunk-${questionNumber}`;
+                                                        const bilingualSideBySide = paperData.layout?.bilingualMode === 'sideBySide'
+
                                                         return (
                                                             <div key={cIdx} className={cn(
                                                                 "mb-8 cursor-pointer hover:bg-zinc-50/20 rounded p-1 transition-colors",
                                                                 selectedSectionIds.includes(chunkId) && "ring-2 ring-emerald-500"
                                                             )} id={chunkId} onClick={(e) => { e.stopPropagation(); onSectionClick?.(chunkId, e); }}
                                                                 style={getSectionStyle(chunkId)}>
-                                                                <div className="flex justify-between font-bold border-b-2 border-black mb-2 text-[14px]">
+                                                                <div className="flex justify-between font-bold border-b-2 border-black mb-4 text-[14px]">
                                                                     <span>
                                                                         <span className="mr-1">{questionNumber}.</span>
                                                                         {renderEditable(`lbl_sq_title_${cIdx}`, getLabel(`lbl_sq_title_${cIdx}`, `Write short answers to any ${convertNumberToWord(attemptCount)} (${attemptCount}) questions.`), (val) => updateLabel(`lbl_sq_title_${cIdx}`, val))}
                                                                     </span>
                                                                     <span>(2 x {attemptCount} = {attemptCount * 2})</span>
                                                                 </div>
-                                                                <div className="grid grid-cols-1 gap-y-2">
+                                                                <div className="space-y-4">
                                                                     {chunk.map(({ data: sq, globalIdx }, idx) => {
                                                                         const sqId = `sq-item-${globalIdx}`;
                                                                         return (
                                                                             <div key={globalIdx} id={sqId}
                                                                                 onClick={(e) => { e.stopPropagation(); onSectionClick?.(sqId, e); }}
                                                                                 className={cn(
-                                                                                    "flex justify-between items-center text-[14px] py-1 border-b border-zinc-100 page-break-inside-avoid cursor-pointer hover:bg-emerald-50/30 rounded px-1 transition-all",
-                                                                                    selectedSectionIds.includes(sqId) && "ring-1 ring-emerald-400 bg-emerald-500/5"
+                                                                                    "flex gap-4 items-start page-break-inside-avoid cursor-pointer hover:bg-emerald-50/30 rounded px-1 transition-all",
+                                                                                    selectedSectionIds.includes(sqId) && "ring-1 ring-emerald-400 bg-emerald-500/5",
+                                                                                    bilingualSideBySide ? "flex-row" : "flex-col"
                                                                                 )}
                                                                                 style={getSectionStyle(sqId)}>
-                                                                                <p className="flex-1 pr-4">
-                                                                                    <span className="font-bold mr-2">{idx + 1}-</span>
-                                                                                    {renderEditable(`sq_en_${globalIdx}`, sq.en, (val) => updateShortQuestion(globalIdx, 'en', val))}
-                                                                                </p>
-                                                                                <p className="flex-1 text-right font-nastaleeq font-semibold text-[11px]" dir="rtl">
-                                                                                    <span className="font-bold mr-2 text-[10px]">{idx + 1}- </span>
-                                                                                    {renderEditable(`sq_ur_${globalIdx}`, sq.ur, (val) => updateShortQuestion(globalIdx, 'ur', val), { className: "font-nastaleeq", dir: "rtl" })}
-                                                                                </p>
+
+                                                                                <div className="flex justify-between items-start w-full">
+                                                                                    <div className="font-bold min-w-[25px] text-[14px] pt-1">({idx + 1})</div>
+                                                                                    <div className="flex-1 flex flex-col gap-1 mx-2">
+                                                                                        {bilingualSideBySide ? (
+                                                                                            <div className="grid grid-cols-2 gap-12 w-full items-start">
+                                                                                                <div className="text-[14px] leading-relaxed text-left w-full font-serif">
+                                                                                                    {renderEditable(`sq_en_${globalIdx}`, sq.en, (val) => updateShortQuestion(globalIdx, 'en', val), { className: "font-serif" })}
+                                                                                                </div>
+                                                                                                <div className="text-[18px] leading-relaxed font-urdu text-right border-l border-zinc-100 pl-6 w-full" dir="rtl">
+                                                                                                    {renderEditable(`sq_ur_${globalIdx}`, sq.ur, (val) => updateShortQuestion(globalIdx, 'ur', val), { className: "font-urdu", dir: "rtl" })}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <div className="space-y-2 w-full">
+                                                                                                <div className="text-[14px] w-full text-left font-serif">
+                                                                                                    {renderEditable(`sq_en_${globalIdx}`, sq.en, (val) => updateShortQuestion(globalIdx, 'en', val), { className: "font-serif" })}
+                                                                                                </div>
+                                                                                                <div className="text-[18px] font-urdu text-right w-full" dir="rtl">
+                                                                                                    {renderEditable(`sq_ur_${globalIdx}`, sq.ur, (val) => updateShortQuestion(globalIdx, 'ur', val), { className: "font-urdu", dir: "rtl" })}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="font-bold text-[14px] pt-1 text-right min-w-[30px]">(02)</div>
+                                                                                </div>
                                                                             </div>
                                                                         )
                                                                     })}
@@ -787,32 +958,118 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                     </div>
                                 )
                             }
+
+                            if (sectionKey === 'quran-vocabulary') {
+                                const isQuranSubject = paperData.paperInfo.subject?.toLowerCase().replace(/[_\s-]/g, '') === 'tarjamatulquran';
+                                return (
+                                    <div key="quran-vocabulary" className="section-container">
+                                        {(isQuranSubject || paperData.quranData?.vocabulary) && (
+                                            <div className={cn(
+                                                "page-break-inside-avoid cursor-pointer hover:bg-zinc-50/30 p-2 rounded transition-colors mb-8",
+                                                selectedSectionIds.includes('quran_vocab_section') && "ring-2 ring-emerald-500"
+                                            )} id="quran_vocab_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('quran_vocab_section', e); }}
+                                                style={getSectionStyle('quran_vocab_section')}>
+                                                <div className="flex justify-between font-bold border-b-2 border-black mb-4 text-[18px] font-urdu" dir="rtl">
+                                                    <span>سوال نمبر 3: درج ذیل قرآنی الفاظ کے معانی تحریر کریں۔</span>
+                                                    <span>(05)</span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <table className="w-full border-collapse border-2 border-black text-center font-bold">
+                                                        <thead>
+                                                            <tr className="bg-zinc-100">
+                                                                <th className="border-2 border-black p-2 font-urdu text-[16px]">الفاظ</th>
+                                                                <th className="border-2 border-black p-2 font-urdu text-[16px]">معانی</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {(paperData.quranData?.vocabulary || Array(8).fill({ arabic: "...", urdu: "..." })).map((item: any, idx: number) => (
+                                                                <tr key={idx}>
+                                                                    <td className="border-2 border-black p-2 font-arabic text-[22px]" dir="rtl">
+                                                                        {renderEditable(`vocab_ar_${idx}`, item.arabic, (val) => {
+                                                                            if (!paperData.quranData || !setPaperData) return;
+                                                                            const newVocab = [...paperData.quranData.vocabulary];
+                                                                            newVocab[idx] = { ...item, arabic: val };
+                                                                            setPaperData({ ...paperData, quranData: { ...paperData.quranData, vocabulary: newVocab } });
+                                                                        }, { className: "font-arabic" })}
+                                                                    </td>
+                                                                    <td className="border-2 border-black p-2 font-urdu text-[18px]" dir="rtl">
+                                                                        {renderEditable(`vocab_ur_${idx}`, item.urdu, (val) => {
+                                                                            if (!paperData.quranData || !setPaperData) return;
+                                                                            const newVocab = [...paperData.quranData.vocabulary];
+                                                                            newVocab[idx] = { ...item, urdu: val };
+                                                                            setPaperData({ ...paperData, quranData: { ...paperData.quranData, vocabulary: newVocab } });
+                                                                        }, { className: "font-urdu" })}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            }
+
+                            if (sectionKey === 'quran-translation') {
+                                const isQuranSubject = paperData.paperInfo.subject?.toLowerCase().replace(/[_\s-]/g, '') === 'tarjamatulquran';
+                                return (
+                                    <div key="quran-translation" className="section-container">
+                                        {(isQuranSubject || paperData.quranData?.verses) && (
+                                            <div className={cn(
+                                                "page-break-inside-avoid cursor-pointer hover:bg-zinc-50/30 p-2 rounded transition-colors mb-8",
+                                                selectedSectionIds.includes('quran_trans_section') && "ring-2 ring-emerald-500"
+                                            )} id="quran_trans_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('quran_trans_section', e); }}
+                                                style={getSectionStyle('quran_trans_section')}>
+                                                <div className="flex justify-between font-bold border-b-2 border-black mb-4 text-[18px] font-urdu" dir="rtl">
+                                                    <span>سوال نمبر 4: درج ذیل میں سے کسی دو قرآنی آیات کا با محاورہ اردو ترجمہ تحریر کریں۔</span>
+                                                    <span>(15)</span>
+                                                </div>
+                                                <div className="space-y-8">
+                                                    {(paperData.quranData?.verses || Array(3).fill({ arabic: "...", urdu: "..." })).map((item: any, idx: number) => (
+                                                        <div key={idx} className="space-y-4 border-b border-zinc-100 pb-4">
+                                                            <div className="flex flex-row-reverse gap-4 items-start">
+                                                                <span className="font-bold text-[18px]">({['الف', 'ب', 'ج'][idx]})</span>
+                                                                <div className="flex-1 font-arabic text-[28px] leading-loose text-right" dir="rtl">
+                                                                    {renderEditable(`verse_ar_${idx}`, item.arabic, (val) => {
+                                                                        if (!paperData.quranData || !setPaperData) return;
+                                                                        const newVerses = [...paperData.quranData.verses];
+                                                                        newVerses[idx] = { ...item, arabic: val };
+                                                                        setPaperData({ ...paperData, quranData: { ...paperData.quranData, verses: newVerses } });
+                                                                    }, { className: "font-arabic" })}
+                                                                </div>
+                                                            </div>
+                                                            <div className="font-urdu text-[18px] text-right text-zinc-600 bg-zinc-50 p-4 rounded-xl italic" dir="rtl">
+                                                                {renderEditable(`verse_ur_${idx}`, item.urdu || "ترجمہ یہاں تحریر کریں...", (val) => {
+                                                                    if (!paperData.quranData || !setPaperData) return;
+                                                                    const newVerses = [...paperData.quranData.verses];
+                                                                    newVerses[idx] = { ...item, urdu: val };
+                                                                    setPaperData({ ...paperData, quranData: { ...paperData.quranData, verses: newVerses } });
+                                                                }, { className: "font-urdu italic" })}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            }
                             if (sectionKey === 'subjective-header') {
                                 return (
                                     <div key="subjective-header" className="section-container">
-                                        {wrapSection('subjective-header', (
-                                            <div className="page-break-before-always border-t-4 border-double border-black pt-4 mb-6">
-                                                <div className="flex justify-between items-center text-[18px] font-black uppercase tracking-widest">
-                                                    <span>
-                                                        {renderEditable('header_part', paperData.headerDetails?.paperPart || "Part - I (Subjective)", (val) => updateHeaderDetail('paperPart', val))}
-                                                    </span>
-                                                    <div className="flex gap-12">
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-[10px] text-zinc-500 mb-1">Total Marks</span>
-                                                            <span className="border-2 border-black px-4 py-1">
-                                                                {renderEditable('header_totalmarks', paperData.headerDetails?.totalMarks || "60", (val) => updateHeaderDetail('totalMarks', val))}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-[10px] text-zinc-500 mb-1">Time Allowed</span>
-                                                            <span className="border-2 border-black px-4 py-1">
-                                                                {renderEditable('header_time', paperData.headerDetails?.timeAllowed || "2:10 Hours", (val) => updateHeaderDetail('timeAllowed', val))}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        <div className="text-center my-8 border-y-2 border-black py-2">
+                                            <h2 className="text-[24px] font-black uppercase tracking-[0.2em] mb-1">
+                                                {renderEditable('sub_header_title', paperData.headerDetails?.subjectiveTitle || "PART-II (Subjective)", (val) => updateHeaderDetail('subjectiveTitle', val))}
+                                            </h2>
+                                            <div className="flex justify-center items-center gap-4 text-[14px] font-bold">
+                                                <div className="h-[1px] w-20 bg-black" />
+                                                <span>{renderEditable('lbl_time', 'Time:', (val) => updateLabel('lbl_time', val))} {renderEditable('header_time', paperData.headerDetails?.timeAllowed || "2:10 Hours", (val) => updateHeaderDetail('timeAllowed', val))}</span>
+                                                <div className="h-[1px] w-4 bg-black" />
+                                                <span>{renderEditable('lbl_marks', 'Marks:', (val) => updateLabel('lbl_marks', val))} {renderEditable('header_totalmarks', paperData.headerDetails?.totalMarks || "60", (val) => updateHeaderDetail('totalMarks', val))}</span>
+                                                <div className="h-[1px] w-20 bg-black" />
                                             </div>
-                                        ))}
+                                        </div>
                                     </div>
                                 )
                             }
@@ -930,7 +1187,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.paraphrasing && paperData.englishData.paraphrasing.length > 0 && (
                                                     <div className="page-break-inside-avoid">
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">2.</span>Paraphrase one of the following stanzas.</span>
+                                                            <span><span className="mr-1">2.</span>{renderEditable('lbl_eng_para', 'Paraphrase one of the following stanzas.', (val) => updateLabel('lbl_eng_para', val))}</span>
                                                             <span>(5)</span>
                                                         </div>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
@@ -960,7 +1217,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.referenceToContext && paperData.englishData.referenceToContext.stanza && (
                                                     <div className="page-break-inside-avoid border-t border-zinc-100 pt-8">
                                                         <div className="flex justify-between font-bold mb-4 text-[14px]">
-                                                            <span>OR Explain the following stanza with reference to the context.</span>
+                                                            <span>{renderEditable('lbl_eng_ref', 'OR Explain the following stanza with reference to the context.', (val) => updateLabel('lbl_eng_ref', val))}</span>
                                                             <span>(5)</span>
                                                         </div>
                                                         <div className="italic text-center px-12">
@@ -984,7 +1241,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.passageComprehension && (
                                                     <div className="page-break-inside-avoid">
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">4.</span>Read the following passage and answer the questions at the end.</span>
+                                                            <span><span className="mr-1">4.</span>{renderEditable('lbl_eng_passage', 'Read the following passage and answer the questions at the end.', (val) => updateLabel('lbl_eng_passage', val))}</span>
                                                             <span>(10)</span>
                                                         </div>
                                                         <div className="px-6 py-4 border border-zinc-200 rounded-lg bg-zinc-50/50 text-[13px] leading-relaxed font-serif whitespace-pre-line text-justify mb-4">
@@ -1016,7 +1273,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.summary && (
                                                     <div className="page-break-inside-avoid">
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">5.</span>{paperData.englishData.summary.userSummary ? 'Read the summary and answer the questions.' : 'Write down the summary of the poem.'}</span>
+                                                            <span><span className="mr-1">5.</span>{renderEditable('lbl_eng_summary', paperData.englishData.summary.userSummary ? 'Read the summary and answer the questions.' : 'Write down the summary of the poem.', (val) => updateLabel('lbl_eng_summary', val))}</span>
                                                             <span>(5)</span>
                                                         </div>
 
@@ -1059,7 +1316,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 )} id="eng_idioms_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('eng_idioms_section', e); }}
                                                     style={getSectionStyle('eng_idioms_section')}>
                                                     <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                        <span><span className="mr-1">6.</span>Use the following words / phrases / idioms in your sentences.</span>
+                                                        <span><span className="mr-1">6.</span>{renderEditable('lbl_eng_idioms', 'Use the following words / phrases / idioms in your sentences.', (val) => updateLabel('lbl_eng_idioms', val))}</span>
                                                         <span>({paperData.englishData.idioms.length} x 1 = {paperData.englishData.idioms.length})</span>
                                                     </div>
                                                     <div className="flex flex-wrap gap-x-8 gap-y-2 px-4 italic font-bold text-[14px]">
@@ -1088,7 +1345,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.letterStoryDialogue && (
                                                     <div className="page-break-inside-avoid">
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">7.</span>Write a {paperData.englishData.letterStoryDialogue.type} on the following.</span>
+                                                            <span><span className="mr-1">7.</span>{renderEditable('lbl_eng_letter_pre', 'Write a', (val) => updateLabel('lbl_eng_letter_pre', val))} {paperData.englishData.letterStoryDialogue.type} {renderEditable('lbl_eng_letter_post', 'on the following.', (val) => updateLabel('lbl_eng_letter_post', val))}</span>
                                                             <span>(8)</span>
                                                         </div>
                                                         <div className="px-4 font-bold text-[14px] italic text-emerald-700">
@@ -1108,7 +1365,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                     )} id="eng_trans_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('eng_trans_section', e); }}
                                                         style={getSectionStyle('eng_trans_section')}>
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">8.</span>Translate the following sentences into English.</span>
+                                                            <span><span className="mr-1">8.</span>{renderEditable('lbl_eng_trans', 'Translate the following sentences into English.', (val) => updateLabel('lbl_eng_trans', val))}</span>
                                                             <span>(4)</span>
                                                         </div>
                                                         <div className="space-y-4 px-4">
@@ -1142,7 +1399,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                                                 {paperData.englishData && paperData.englishData.voice && paperData.englishData.voice.length > 0 && (
                                                     <div className="page-break-inside-avoid">
                                                         <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                            <span><span className="mr-1">9.</span>Change the voice of the following.</span>
+                                                            <span><span className="mr-1">9.</span>{renderEditable('lbl_eng_voice', 'Change the voice of the following.', (val) => updateLabel('lbl_eng_voice', val))}</span>
                                                             <span>({paperData.englishData.voice.length})</span>
                                                         </div>
                                                         <div className="space-y-2 px-4 italic">
@@ -1168,45 +1425,120 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                             if (sectionKey === 'long-questions') {
                                 return (
                                     <div key="long-questions" className="section-container">
-                                        {paperData.paperInfo.subject === "English" && paperData.longQuestions && paperData.longQuestions.length > 0 && (
+                                        {paperData.longQuestions && paperData.longQuestions.length > 0 && (
                                             <div className={cn(
-                                                "mt-12 page-break-inside-avoid border-t-2 border-zinc-100 pt-8 cursor-pointer hover:bg-zinc-50/30 p-2 rounded transition-colors",
-                                                selectedSectionIds.includes('eng_long_section') && "ring-2 ring-emerald-500"
-                                            )} id="eng_long_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('eng_long_section', e); }}
-                                                style={getSectionStyle('eng_long_section')}>
-                                                <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
-                                                    <span><span className="mr-1">10.</span>
-                                                        {renderEditable('lbl_lq_title', getLabel('lbl_lq_title', 'Write an Essay / Paragraph on ANY ONE of the following topics.'), (val) => updateLabel('lbl_lq_title', val))}
-                                                    </span>
-                                                    <span>(15)</span>
-                                                </div>
-                                                <div className="px-4 space-y-4">
-                                                    <div className="grid grid-cols-2 gap-4 font-bold text-[14px]">
-                                                        {paperData.longQuestions.map((lq: any, idx: number) => {
-                                                            const lqId = `lq_topic_${idx}`;
-                                                            return (
-                                                                <div key={idx} className={cn(
-                                                                    "flex gap-2 cursor-pointer hover:bg-emerald-50/30 rounded px-1",
-                                                                    selectedSectionIds.includes(lqId) && "ring-1 ring-emerald-400 bg-emerald-500/5"
-                                                                )} id={lqId} onClick={(e) => { e.stopPropagation(); onSectionClick?.(lqId, e); }}
-                                                                    style={getSectionStyle(lqId)}>
-                                                                    <span>({['i', 'ii', 'iii', 'iv', 'v'][idx]})</span>
-                                                                    {renderEditable(lqId, lq.en, (val) => {
-                                                                        if (!setPaperData) return
-                                                                        const newLqs = [...paperData.longQuestions]
-                                                                        newLqs[idx] = { ...lq, en: val }
-                                                                        setPaperData({ ...paperData, longQuestions: newLqs })
-                                                                    })}
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </div>
+                                                "mt-8 page-break-inside-avoid border-t-2 border-black pt-4 cursor-pointer hover:bg-zinc-50/30 p-2 rounded transition-colors",
+                                                selectedSectionIds.includes('long_qs_section') && "ring-2 ring-emerald-500"
+                                            )} id="long_qs_section" onClick={(e) => { e.stopPropagation(); onSectionClick?.('long_qs_section', e); }}
+                                                style={getSectionStyle('long_qs_section')}>
 
-                                                    {/* Writing Lines / Box */}
-                                                    <div className="mt-8 border-2 border-dashed border-zinc-200 h-[400px] flex flex-col items-center justify-center text-zinc-300 font-bold uppercase tracking-widest bg-zinc-50/50 rounded-lg">
-                                                        <div className="text-xl mb-2 opacity-30">Writing Area</div>
-                                                        <div className="text-[10px] opacity-20">Student will write their response here manually</div>
-                                                    </div>
+                                                <div className="text-center mb-6">
+                                                    <h3 className="text-[18px] font-black uppercase tracking-widest border-b-2 border-black inline-block px-8 pb-1">
+                                                        {renderEditable('lq_main_header', getLabel('lq_main_header', 'SECTION II (Subjective)'), (val) => updateLabel('lq_main_header', val))}
+                                                    </h3>
+                                                    <p className="text-[12px] font-bold mt-2 italic">
+                                                        {renderEditable('lq_note', getLabel('lq_note', 'Note: Attempt the following questions.'), (val) => updateLabel('lq_note', val))}
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-8">
+                                                    {paperData.longQuestions.map((lq: any, idx: number) => {
+                                                        const lqId = `lq_item_${idx}`;
+                                                        const isScience = !["urdu", "english", "islamiat", "pakistan studies", "tarjamatulquran"].includes(paperData.paperInfo.subject.toLowerCase());
+                                                        const isUrduSubject = ["urdu", "islamiat", "tarjamatulquran"].includes(paperData.paperInfo.subject.toLowerCase());
+
+                                                        return (
+                                                            <div key={idx} className={cn(
+                                                                "group/lq hover:bg-emerald-50/20 rounded p-2 transition-all",
+                                                                selectedSectionIds.includes(lqId) && "ring-1 ring-emerald-500"
+                                                            )} id={lqId} onClick={(e) => { e.stopPropagation(); onSectionClick?.(lqId, e); }}
+                                                                style={getSectionStyle(lqId)}>
+
+                                                                {/* Question Header */}
+                                                                <div className={cn("flex justify-between font-bold text-[16px] mb-2", isUrduSubject && "flex-row-reverse")}>
+                                                                    <div className="flex gap-2">
+                                                                        <span>Q.{idx + (paperData.paperInfo.subject === "Biology" || paperData.paperInfo.subject === "Chemistry" || paperData.paperInfo.subject === "Physics" ? 5 : 5)}</span>
+                                                                        {isUrduSubject ? (
+                                                                            <div className="font-urdu" dir="rtl">
+                                                                                {renderEditable(`${lqId}-ur`, lq.ur || lq.en, (val) => updateLq(idx, 'ur', val), { className: "font-urdu", dir: "rtl" })}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="font-serif">
+                                                                                {renderEditable(`${lqId}-en`, lq.en, (val) => updateLq(idx, 'en', val))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <span>({lq.marks || (isScience ? "4+4" : "8")})</span>
+                                                                </div>
+
+                                                                {/* Parts (a) and (b) for Science/Generic */}
+                                                                {lq.parts && lq.parts.length > 0 && (
+                                                                    <div className="space-y-4 ml-6">
+                                                                        {lq.parts.map((part: any, pIdx: number) => {
+                                                                            const partId = `${lqId}-p-${pIdx}`;
+                                                                            const isTheory = pIdx === 0; // Assumption for Science: (a) is Theory, (b) is Numerical usually
+                                                                            return (
+                                                                                <div key={pIdx} className="flex justify-between" id={partId}
+                                                                                    onClick={(e) => { e.stopPropagation(); onSectionClick?.(partId, e); }}>
+                                                                                    <div className="flex gap-2 text-[14px]">
+                                                                                        <span className="font-bold">({['a', 'b', 'c'][pIdx]})</span>
+
+                                                                                        {isScience && (
+                                                                                            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 mt-0.5 select-none">
+                                                                                                {isTheory ? "[THEORY]" : "[NUMERICAL]"}
+                                                                                            </span>
+                                                                                        )}
+
+                                                                                        <div className="flex-1">
+                                                                                            {paperData.layout?.bilingualMode === 'sideBySide' ? (
+                                                                                                <div className="grid grid-cols-2 gap-8 w-full">
+                                                                                                    <div className="font-serif text-justify">
+                                                                                                        {renderEditable(`${partId}-en`, part.en, (val) => {
+                                                                                                            // Deep update logic needed here, simplifying for now
+                                                                                                            const newLqs = [...paperData.longQuestions];
+                                                                                                            newLqs[idx].parts[pIdx].en = val;
+                                                                                                            setPaperData?.({ ...paperData, longQuestions: newLqs });
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                    <div className="font-urdu text-right" dir="rtl">
+                                                                                                        {renderEditable(`${partId}-ur`, part.ur, (val) => {
+                                                                                                            const newLqs = [...paperData.longQuestions];
+                                                                                                            newLqs[idx].parts[pIdx].ur = val;
+                                                                                                            setPaperData?.({ ...paperData, longQuestions: newLqs });
+                                                                                                        }, { className: "font-urdu", dir: "rtl" })}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="space-y-1">
+                                                                                                    <div className="font-serif">
+                                                                                                        {renderEditable(`${partId}-en`, part.en, (val) => {
+                                                                                                            const newLqs = [...paperData.longQuestions];
+                                                                                                            newLqs[idx].parts[pIdx].en = val;
+                                                                                                            setPaperData?.({ ...paperData, longQuestions: newLqs });
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                    <div className="font-urdu text-right" dir="rtl">
+                                                                                                        {renderEditable(`${partId}-ur`, part.ur, (val) => {
+                                                                                                            const newLqs = [...paperData.longQuestions];
+                                                                                                            newLqs[idx].parts[pIdx].ur = val;
+                                                                                                            setPaperData?.({ ...paperData, longQuestions: newLqs });
+                                                                                                        }, { className: "font-urdu", dir: "rtl" })}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="font-bold text-[14px]">
+                                                                                        ({part.marks || 4})
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
@@ -1229,10 +1561,6 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                     })}
                 </Reorder.Group>
 
-
-
-
-
                 {/* Floating Creative Elements Layer */}
                 <div className="absolute inset-0 pointer-events-none overflow-hidden print:overflow-visible">
                     <div className="relative w-full h-full">
@@ -1241,7 +1569,7 @@ export function PaperRenderer({ paperData, selectedSectionIds = [], onSectionCli
                         </AnimatePresence>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }

@@ -24,11 +24,14 @@ import {
     CardDescription,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { CURRICULUM_DATA } from "@/app/lib/curriculum-data"
 import {
     Tooltip,
     TooltipContent,
@@ -149,6 +152,11 @@ export default function GenerateTestPage() {
                 } : undefined
             })
 
+            console.log('📋 GENERATION DEBUG - Subject:', config.subject);
+            console.log('📋 Normalized:', config.subject?.toLowerCase().replace(/[_\s-]/g, ''));
+            console.log('📋 Prompt includes TARJAMA:', systemPrompt.includes('TARJAMA'));
+            console.log('📋 Prompt includes quranData:', systemPrompt.includes('quranData'));
+
             toast.loading("Gathering Data from Internet...", { id: toastId })
 
             const response = await generateTestInternet({ systemPrompt })
@@ -160,6 +168,12 @@ export default function GenerateTestPage() {
             }
 
             const paperData = JSON.parse(jsonMatch[0])
+
+            console.log('📄 Paper Data Keys:', Object.keys(paperData));
+            console.log('📄 Has quranData:', !!paperData.quranData);
+            if (paperData.quranData) {
+                console.log('📄 quranData:', paperData.quranData);
+            }
 
             const genConfig = {
                 grade: config.grade,
@@ -213,7 +227,7 @@ export default function GenerateTestPage() {
             // localStorage.setItem('lastGeneratedPaper', JSON.stringify(paperData))
 
             toast.success("Exam Paper Synthesized!", { id: toastId })
-            router.push(`/PrincipalDashboard/ai-logs/view-paper?id=${savedDbId}&title=Generated_${config.subject}_${finalChapters.replace(/[^a-zA-Z0-9]/g, '_')}`)
+            router.push(`/paper-editor?id=${savedDbId}`)
 
         } catch (error: any) {
             console.error(error)
@@ -275,8 +289,7 @@ export default function GenerateTestPage() {
     }
 
     const viewPaper = (paper: any) => {
-        // localStorage.setItem('lastGeneratedPaper', JSON.stringify(paper.data))
-        router.push(`/PrincipalDashboard/ai-logs/view-paper/architect?id=${paper.id}`)
+        router.push(`/paper-editor?id=${paper.id}`)
     }
 
     return (
@@ -321,7 +334,7 @@ export default function GenerateTestPage() {
                                     <button
                                         key={g}
                                         onClick={() => {
-                                            const subjects = getSubjectsForGradeAndStream(g, config.stream);
+                                            const subjects = CURRICULUM_DATA[g] ? Object.keys(CURRICULUM_DATA[g]) : []
                                             setConfig({
                                                 ...config,
                                                 grade: g,
@@ -342,38 +355,12 @@ export default function GenerateTestPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Academic Stream</Label>
-                            <div className="flex flex-wrap gap-2">
-                                {STREAMS.map((s) => (
-                                    <button
-                                        key={s}
-                                        onClick={() => {
-                                            const subjects = getSubjectsForGradeAndStream(config.grade, s);
-                                            setConfig({
-                                                ...config,
-                                                stream: s,
-                                                subject: subjects[0] || "",
-                                                selectedChapters: []
-                                            });
-                                        }}
-                                        className={cn(
-                                            "h-10 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
-                                            config.stream === s
-                                                ? "bg-amber-500 text-black border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
-                                                : "bg-white/2 border-white/5 text-zinc-600 hover:text-white hover:bg-white/5"
-                                        )}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+
 
                         <div className="space-y-4">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Core Subject</Label>
                             <div className="flex flex-wrap gap-2">
-                                {getSubjectsForGradeAndStream(config.grade, config.stream).map((s) => (
+                                {(CURRICULUM_DATA && config.grade && CURRICULUM_DATA[config.grade] ? Object.keys(CURRICULUM_DATA[config.grade]) : []).map((s) => (
                                     <button
                                         key={s}
                                         onClick={() => setConfig({ ...config, subject: s, selectedChapters: [] })}
@@ -415,10 +402,10 @@ export default function GenerateTestPage() {
                                 </div>
                             </div>
 
-                            {getChaptersForSubject(config.grade, config.subject).length > 0 ? (
+                            {CURRICULUM_DATA && config.grade && config.subject && CURRICULUM_DATA[config.grade]?.[config.subject]?.length > 0 ? (
                                 <ScrollArea className="h-48 rounded-2xl border border-white/5 bg-zinc-950/50 p-4">
                                     <div className="flex flex-wrap gap-2">
-                                        {getChaptersForSubject(config.grade, config.subject).map((ch: string) => (
+                                        {(CURRICULUM_DATA[config.grade][config.subject] as string[]).map((ch: string) => (
                                             <button
                                                 key={ch}
                                                 onClick={() => {
@@ -435,7 +422,7 @@ export default function GenerateTestPage() {
                                                 }}
                                                 className={cn(
                                                     "px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
-                                                    (config.subject === "Urdu" || config.subject === "Islamiat") && "font-nastaleeq text-sm",
+                                                    (config.subject === "Urdu" || config.subject === "Islamiat" || config.subject === "Turjama-tul-Quran") && "font-nastaleeq text-sm",
                                                     config.selectedChapters.includes(ch)
                                                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                                                         : "bg-white/2 border-white/5 text-zinc-600 hover:text-white"

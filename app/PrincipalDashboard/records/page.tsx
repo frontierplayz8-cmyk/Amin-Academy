@@ -141,9 +141,14 @@ export default function RecordsManagement() {
                 if (historyData.success) {
                     const mappedStaff = historyData.staffStats.map((s: any) => {
                         const baseSalary = s.salary || 0
-                        const deductions = s.absentCount * 1500
+                        // Fix: Calculate daily wage for deduction instead of fixed 1500
+                        const dailyWage = baseSalary > 0 ? Math.round(baseSalary / 30) : 1500
+                        const deductions = s.absentCount * dailyWage
                         const netPayable = Math.max(0, baseSalary - deductions)
-                        const activeDays = s.history.filter((h: any) => h.status !== 'None').length || 1
+
+                        // Fix: Active days should be total relevant days (Present + Absent). Ignore 'None' (holidays/unmarked).
+                        // If days are 0, avoid division by zero.
+                        const activeDays = (s.presentCount + s.absentCount) || 1
                         const attendanceRate = Math.round((s.presentCount / activeDays) * 100)
 
                         const todayRecord = s.history[s.history.length - 1]
@@ -176,30 +181,7 @@ export default function RecordsManagement() {
 
 
 
-    const handleDisburseAll = async () => {
-        const total = staffData.reduce((acc, curr) => acc + curr.netPayable, 0)
-        const toastId = toast.loading(`Initiating mass disbursement of PKR ${total.toLocaleString()}...`)
 
-        try {
-            // Batch write to 'payouts' collection or update users
-            const batch = writeBatch(db)
-            staffData.forEach(staff => {
-                // Example: Create a payout record
-                const payoutRef = doc(collection(db, 'payouts'))
-                batch.set(payoutRef, {
-                    teacherId: staff.id,
-                    amount: staff.netPayable,
-                    date: new Date().toISOString(),
-                    status: 'Completed'
-                })
-            })
-            await batch.commit()
-
-            toast.success(`Treasury Protocol Success: ${staffData.length} faculty nodes compensated.`, { id: toastId })
-        } catch (e) {
-            toast.error("Disbursement Failed", { id: toastId })
-        }
-    }
 
     const handleDeletePaper = async (id: string) => {
         try {
@@ -238,7 +220,7 @@ export default function RecordsManagement() {
 
     const handleViewPaper = (doc: any) => {
         // localStorage.setItem('lastGeneratedPaper', JSON.stringify(doc.data))
-        router.push(`/PrincipalDashboard/ai-logs/view-paper/architect?id=${doc.id}`)
+        router.push(`/paper-editor?id=${doc.id}`)
     }
 
     // Metrics
@@ -314,7 +296,7 @@ export default function RecordsManagement() {
                 <div className="flex flex-col lg:items-center justify-between gap-6 mb-12 bg-white/[0.02] p-4 rounded-[2.5rem] border border-white/5">
                     <TabsList className="bg-[#080808]/50 border border-white/5 p-1.5 rounded-2xl backdrop-blur-md h-auto shrink-0 flex items-center">
                         <TabsTrigger value="vault" className="rounded-xl px-8 py-3.5 text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-emerald-500 data-[state=active]:text-black transition-all gap-2 h-full flex items-center">
-                            <FileText size={14} /> Vault
+                            <FileText size={14} /> Paper Vault
                         </TabsTrigger>
                         <TabsTrigger value="staff" className="rounded-xl px-8 py-3.5 text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-black transition-all gap-2 h-full flex items-center">
                             <Clock size={14} /> Attendance
@@ -369,13 +351,7 @@ export default function RecordsManagement() {
                         )}
 
                         {activeTab === 'payroll' && (
-                            <Button
-                                onClick={handleDisburseAll}
-                                className="h-14 px-8 bg-white text-black hover:bg-emerald-500 hover:text-black font-black uppercase italic tracking-widest rounded-2xl shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all group w-full lg:w-auto"
-                            >
-                                <Shield size={16} className="mr-2 group-hover:rotate-12 transition-transform" />
-                                Master Disbursement
-                            </Button>
+                            <div className="h-14"></div> // Spacer to keep layout consistent
                         )}
 
 
@@ -417,7 +393,7 @@ export default function RecordsManagement() {
                             <Table>
                                 <TableHeader className="bg-zinc-950/40">
                                     <TableRow className="border-white/5 hover:bg-transparent">
-                                        <TableHead className="px-10 py-8 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Beneficiary Hub</TableHead>
+                                        <TableHead className="px-10 py-8 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Staff Members</TableHead>
                                         <TableHead className="px-10 py-8 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Base Allocation</TableHead>
                                         <TableHead className="px-10 py-8 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Net Disbursement</TableHead>
                                         <TableHead className="px-10 py-8 text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Status</TableHead>

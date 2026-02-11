@@ -7,7 +7,9 @@ import {
     AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline,
     Type, Palette, GripVertical,
     Trash2, Sparkles, Layout, Image as ImageIcon,
-    RotateCcw, ArrowUp, ArrowDown, X, Box, Maximize2
+    RotateCcw, ArrowUp, ArrowDown, X, Box, Maximize2,
+    Upload, Eye, EyeOff, Layers, MoveHorizontal, MoveVertical, Shrink,
+    Rows
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
@@ -173,6 +175,30 @@ function PaperEditorContent() {
         }
     }
 
+    const deleteSection = (key: string) => {
+        const currentOrder = paperData.sectionOrder || []
+        setPaperData({ ...paperData, sectionOrder: currentOrder.filter((k: string) => k !== key) })
+        toast.info("Section removed")
+    }
+
+    const addSection = (key: string) => {
+        const currentOrder = paperData.sectionOrder || []
+        if (!currentOrder.includes(key)) {
+            setPaperData({ ...paperData, sectionOrder: [...currentOrder, key] })
+            toast.success("Section added")
+        }
+    }
+
+    const AVAILABLE_SECTIONS = [
+        { id: 'header', label: 'Main Header' },
+        { id: 'mcqs', label: 'MCQs Section' },
+        { id: 'subjective-header', label: 'Subjective Header' },
+        { id: 'short-questions', label: 'Short Questions' },
+        { id: 'long-questions', label: 'Long Questions' },
+        { id: 'english-special-sections', label: 'English Special' },
+        { id: 'urdu-special-sections', label: 'Urdu Special' }
+    ]
+
     const applyStyleToSelection = (style: any) => {
         if (selectedSectionIds.length === 0) {
             toast.error("Select elements first")
@@ -180,7 +206,21 @@ function PaperEditorContent() {
         }
         const newStyles = { ...sectionStyles }
         selectedSectionIds.forEach(id => {
-            newStyles[id] = { ...(newStyles[id] || {}), ...style }
+            const currentStyle = newStyles[id] || {}
+            let finalStyle = { ...style }
+
+            // Toggle logic
+            Object.keys(style).forEach(key => {
+                if (key === 'fontWeight' && style[key] === 'bold' && currentStyle[key] === 'bold') {
+                    finalStyle[key] = 'normal'
+                } else if (key === 'fontStyle' && style[key] === 'italic' && currentStyle[key] === 'italic') {
+                    finalStyle[key] = 'normal'
+                } else if (key === 'textDecoration' && style[key] === 'underline' && currentStyle[key] === 'underline') {
+                    finalStyle[key] = 'none'
+                }
+            })
+
+            newStyles[id] = { ...currentStyle, ...finalStyle }
         })
         setSectionStyles(newStyles)
     }
@@ -232,7 +272,7 @@ function PaperEditorContent() {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-zinc-950 text-white gap-4">
                 <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-xl font-bold tracking-widest uppercase animate-pulse">Initializing Advanced Architect...</p>
+                <p className="text-xl font-bold tracking-widest uppercase animate-pulse text-emerald-500">Initializing Paper Editor...</p>
             </div>
         )
     }
@@ -312,21 +352,36 @@ function PaperEditorContent() {
                         <ScrollArea className="flex-1 px-4 py-6">
                             <TabsContent value="typography" className="m-0 space-y-6">
                                 <section className="space-y-4">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Text Transform</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50 text-xs font-bold uppercase gap-2" onClick={() => applyStyleToSelection({ fontWeight: 'bold' })}>
-                                            <Bold className="w-4 h-4" /> Bold
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Text Style</Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50" onClick={() => applyStyleToSelection({ fontWeight: 'bold' })}>
+                                            <Bold className="w-4 h-4" />
                                         </Button>
-                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50 text-xs font-bold uppercase gap-2" onClick={() => applyStyleToSelection({ fontStyle: 'italic' })}>
-                                            <Italic className="w-4 h-4" /> Italic
+                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50" onClick={() => applyStyleToSelection({ fontStyle: 'italic' })}>
+                                            <Italic className="w-4 h-4" />
                                         </Button>
-                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50 text-xs font-bold uppercase gap-2" onClick={() => applyStyleToSelection({ textDecoration: 'underline' })}>
-                                            <Underline className="w-4 h-4" /> Underline
-                                        </Button>
-                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50 text-xs font-bold uppercase gap-2" onClick={() => applyStyleToSelection({ fontFamily: "'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif" })}>
-                                            <Languages className="w-4 h-4" /> Urdu Font
+                                        <Button variant="outline" className="h-10 border-white/5 bg-zinc-800/50" onClick={() => applyStyleToSelection({ textDecoration: 'underline' })}>
+                                            <Underline className="w-4 h-4" />
                                         </Button>
                                     </div>
+                                </section>
+
+                                <section className="space-y-4 pt-4 border-t border-white/5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Font Family</Label>
+                                    <Select
+                                        onValueChange={(v) => applyStyleToSelection({ fontFamily: v })}
+                                    >
+                                        <SelectTrigger className="bg-zinc-800/50 border-white/5 h-10">
+                                            <SelectValue placeholder="Select Font" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="inherit font-sans">Default Sans</SelectItem>
+                                            <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+                                            <SelectItem value="'Inter', sans-serif">Inter Sans</SelectItem>
+                                            <SelectItem value="'Fira Code', monospace">Fira Code Mono</SelectItem>
+                                            <SelectItem value="'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif">Nastaliq Urdu</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </section>
 
                                 <section className="space-y-4 pt-4 border-t border-white/5">
@@ -365,6 +420,62 @@ function PaperEditorContent() {
                                         step={0.1}
                                         onValueChange={(v) => applyStyleToSelection({ lineHeight: Array.isArray(v) ? v[0] : v })}
                                     />
+                                </section>
+
+                                <section className="space-y-6 pt-4 border-t border-white/5">
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Letter Spacing</Label>
+                                            <span className="text-[10px] font-black text-emerald-500">PX</span>
+                                        </div>
+                                        <Slider
+                                            defaultValue={[0]}
+                                            max={10}
+                                            min={-2}
+                                            step={0.1}
+                                            onValueChange={(v) => applyStyleToSelection({ letterSpacing: `${Array.isArray(v) ? v[0] : v}px` })}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Word Spacing</Label>
+                                            <span className="text-[10px] font-black text-emerald-500">PX</span>
+                                        </div>
+                                        <Slider
+                                            defaultValue={[0]}
+                                            max={20}
+                                            min={0}
+                                            step={1}
+                                            onValueChange={(v) => applyStyleToSelection({ wordSpacing: `${Array.isArray(v) ? v[0] : v}px` })}
+                                        />
+                                    </div>
+                                </section>
+
+                                <section className="space-y-4 pt-4 border-t border-white/5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic block mb-2">Paddings (Granular)</Label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-[9px] text-zinc-500 uppercase">Top</Label>
+                                            <Input type="number" className="h-8 bg-zinc-800/50 border-white/5 text-xs"
+                                                onChange={(e) => applyStyleToSelection({ paddingTop: `${e.target.value}px` })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-[9px] text-zinc-500 uppercase">Bottom</Label>
+                                            <Input type="number" className="h-8 bg-zinc-800/50 border-white/5 text-xs"
+                                                onChange={(e) => applyStyleToSelection({ paddingBottom: `${e.target.value}px` })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-[9px] text-zinc-500 uppercase">Left</Label>
+                                            <Input type="number" className="h-8 bg-zinc-800/50 border-white/5 text-xs"
+                                                onChange={(e) => applyStyleToSelection({ paddingLeft: `${e.target.value}px` })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-[9px] text-zinc-500 uppercase">Right</Label>
+                                            <Input type="number" className="h-8 bg-zinc-800/50 border-white/5 text-xs"
+                                                onChange={(e) => applyStyleToSelection({ paddingRight: `${e.target.value}px` })} />
+                                        </div>
+                                    </div>
                                 </section>
                             </TabsContent>
 
@@ -425,8 +536,69 @@ function PaperEditorContent() {
                             </TabsContent>
 
                             <TabsContent value="layout" className="m-0 space-y-6">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center block">Page & Architecture</Label>
-                                <div className="space-y-4">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center block">Page & Layout</Label>
+                                <Slider
+                                    defaultValue={[0]}
+                                    max={100}
+                                    min={0}
+                                    step={4}
+                                    onValueChange={(v) => applyStyleToSelection({ marginBottom: `${Array.isArray(v) ? v[0] : v}px` })}
+                                />
+
+                                <section className="space-y-4 pt-4 border-t border-white/5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Advanced Paper Modes</Label>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-800/50 border border-white/5">
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles className="w-4 h-4 text-amber-500" />
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider">Math Mode (Katex)</span>
+                                                    <span className="text-[9px] text-zinc-500">Render $...$ as equations</span>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant={paperData.layout?.mathMode ? "default" : "outline"}
+                                                size="sm"
+                                                className={cn(
+                                                    "h-7 text-[10px] px-3 transition-all",
+                                                    paperData.layout?.mathMode ? "bg-emerald-500 text-white" : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border-emerald-500/20"
+                                                )}
+                                                onClick={() => setPaperData({
+                                                    ...paperData,
+                                                    layout: { ...paperData.layout, mathMode: !paperData.layout?.mathMode }
+                                                })}
+                                            >
+                                                {paperData.layout?.mathMode ? "ENABLED" : "DISABLED"}
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-800/50 border border-white/5">
+                                            <div className="flex items-center gap-2">
+                                                <Languages className="w-4 h-4 text-blue-500" />
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider">Side-by-Side Bilingual</span>
+                                                    <span className="text-[9px] text-zinc-500">Dual column display</span>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant={paperData.layout?.bilingualMode === 'sideBySide' ? "default" : "outline"}
+                                                size="sm"
+                                                className={cn(
+                                                    "h-7 text-[10px] px-3 transition-all",
+                                                    paperData.layout?.bilingualMode === 'sideBySide' ? "bg-emerald-500 text-white" : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border-emerald-500/20"
+                                                )}
+                                                onClick={() => setPaperData({
+                                                    ...paperData,
+                                                    layout: { ...paperData.layout, bilingualMode: paperData.layout?.bilingualMode === 'sideBySide' ? 'stacked' : 'sideBySide' }
+                                                })}
+                                            >
+                                                {paperData.layout?.bilingualMode === 'sideBySide' ? "ENABLED" : "DISABLED"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <div className="space-y-4 pt-4 border-t border-white/5">
                                     <div className="flex gap-2">
                                         <Button
                                             variant="outline"
@@ -443,25 +615,48 @@ function PaperEditorContent() {
                                     <div className="pt-4 border-t border-white/5 space-y-4">
                                         <Label className="text-[10px] font-black text-zinc-500 uppercase">Section Management</Label>
                                         <div className="space-y-2">
-                                            {(paperData?.sectionOrder || []).map((key: string, idx: number) => (
-                                                <div key={key} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 group hover:border-emerald-500/30 transition-all">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="flex flex-col gap-1">
-                                                            <button onClick={() => moveSection(idx, 'up')} className="p-0.5 hover:text-emerald-500 disabled:opacity-30" disabled={idx === 0}><ArrowUp className="w-3 h-3" /></button>
-                                                            <button onClick={() => moveSection(idx, 'down')} className="p-0.5 hover:text-emerald-500 disabled:opacity-30" disabled={idx === (paperData.sectionOrder?.length || 0) - 1}><ArrowDown className="w-3 h-3" /></button>
+                                            <div className="space-y-2">
+                                                {(paperData?.sectionOrder || []).map((key: string, idx: number) => (
+                                                    <div key={key} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 group hover:border-emerald-500/30 transition-all">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                <button onClick={() => moveSection(idx, 'up')} className="p-0.5 hover:text-emerald-500 disabled:opacity-30" disabled={idx === 0}><ArrowUp className="w-3 h-3" /></button>
+                                                                <button onClick={() => moveSection(idx, 'down')} className="p-0.5 hover:text-emerald-500 disabled:opacity-30" disabled={idx === (paperData.sectionOrder?.length || 0) - 1}><ArrowDown className="w-3 h-3" /></button>
+                                                            </div>
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{key.replace(/-/g, ' ')}</span>
                                                         </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{key.replace(/-/g, ' ')}</span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-zinc-500 hover:text-red-500"
+                                                            onClick={() => deleteSection(key)}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
                                                     </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-zinc-500 hover:text-red-500"
-                                                        onClick={() => toggleSectionVisibility(key)}
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                    </Button>
+                                                ))}
+                                            </div>
+
+                                            {/* Add Section Area */}
+                                            <div className="pt-4 mt-4 border-t border-white/5">
+                                                <Label className="text-[10px] font-black text-zinc-500 uppercase mb-2 block">Available Sections</Label>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {AVAILABLE_SECTIONS.filter(s => !paperData.sectionOrder?.includes(s.id)).map(section => (
+                                                        <Button
+                                                            key={section.id}
+                                                            variant="outline"
+                                                            className="justify-between border-dashed border-zinc-700 text-zinc-400 hover:text-emerald-500 hover:border-emerald-500 hover:bg-emerald-500/10"
+                                                            onClick={() => addSection(section.id)}
+                                                        >
+                                                            <span className="text-[10px] font-bold uppercase">{section.label}</span>
+                                                            <span className="text-xs">+</span>
+                                                        </Button>
+                                                    ))}
+                                                    {AVAILABLE_SECTIONS.filter(s => !paperData.sectionOrder?.includes(s.id)).length === 0 && (
+                                                        <p className="text-[10px] text-zinc-600 italic text-center py-2">All sections are active</p>
+                                                    )}
                                                 </div>
-                                            ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -474,26 +669,138 @@ function PaperEditorContent() {
                                         placeholder="Enter watermark text..."
                                         className="bg-zinc-800/50 border-white/5 h-10 text-xs font-bold"
                                         value={paperData.watermark?.text || ''}
-                                        onChange={(e) => updateWatermark({ text: e.target.value })}
+                                        onChange={(e) => updateWatermark({ text: e.target.value, image: null })}
                                     />
-                                    <div className="space-y-4 mt-4">
-                                        <div className="flex justify-between items-center">
-                                            <Label className="text-[10px] font-bold text-zinc-500 uppercase">Opacity</Label>
+
+                                    <div className="pt-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Or Upload Image</Label>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 border-dashed border-zinc-700 bg-zinc-800/30 h-10 text-[10px] font-bold uppercase gap-2 hover:border-emerald-500"
+                                                onClick={() => {
+                                                    const input = document.createElement('input');
+                                                    input.type = 'file';
+                                                    input.accept = 'image/*';
+                                                    input.onchange = (e: any) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onload = (re => {
+                                                                updateWatermark({ image: re.target?.result as string, text: '' });
+                                                            });
+                                                            reader.readAsDataURL(file);
+                                                        }
+                                                    };
+                                                    input.click();
+                                                }}
+                                            >
+                                                <Upload className="w-3 h-3" /> Upload Watermark
+                                            </Button>
+                                            {paperData.watermark?.image && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-10 w-10 text-red-500 hover:bg-red-500/10"
+                                                    onClick={() => updateWatermark({ image: null })}
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6 mt-4 pt-4 border-t border-white/5">
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <Layers className="w-3 h-3 text-emerald-500" />
+                                                    <Label className="text-[10px] font-bold text-zinc-500 uppercase">Z-Index (Depth)</Label>
+                                                </div>
+                                                <span className="text-[10px] font-black text-emerald-500">{paperData.watermark?.zIndex || 0}</span>
+                                            </div>
                                             <Slider
-                                                value={[paperData.watermark?.opacity || 0.1]}
-                                                max={1} min={0} step={0.05}
-                                                className="w-2/3"
-                                                onValueChange={(v) => updateWatermark({ opacity: Array.isArray(v) ? v[0] : v })}
+                                                value={[paperData.watermark?.zIndex || 0]}
+                                                max={100} min={-10} step={1}
+                                                onValueChange={(v) => updateWatermark({ zIndex: Array.isArray(v) ? v[0] : v })}
+                                            />
+                                            <p className="text-[9px] text-zinc-600 italic">Use negative values to place behind content.</p>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <Shrink className="w-3 h-3 text-emerald-500" />
+                                                    <Label className="text-[10px] font-bold text-zinc-500 uppercase">Scale</Label>
+                                                </div>
+                                                <span className="text-[10px] font-black text-emerald-500">{paperData.watermark?.scale || 1}x</span>
+                                            </div>
+                                            <Slider
+                                                value={[paperData.watermark?.scale || 1]}
+                                                max={5} min={0.1} step={0.1}
+                                                onValueChange={(v) => updateWatermark({ scale: Array.isArray(v) ? v[0] : v })}
                                             />
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <Label className="text-[10px] font-bold text-zinc-500 uppercase">Rotation</Label>
-                                            <Slider
-                                                value={[paperData.watermark?.rotation || -45]}
-                                                max={180} min={-180} step={5}
-                                                className="w-2/3"
-                                                onValueChange={(v) => updateWatermark({ rotation: Array.isArray(v) ? v[0] : v })}
-                                            />
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-3">
+                                                <Label className="text-[9px] font-black text-zinc-500 uppercase">Opacity</Label>
+                                                <Slider
+                                                    value={[paperData.watermark?.opacity || 0.1]}
+                                                    max={1} min={0} step={0.05}
+                                                    onValueChange={(v) => updateWatermark({ opacity: Array.isArray(v) ? v[0] : v })}
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-[9px] font-black text-zinc-500 uppercase">Rotation</Label>
+                                                <Slider
+                                                    value={[paperData.watermark?.rotation || -45]}
+                                                    max={180} min={-180} step={5}
+                                                    onValueChange={(v) => updateWatermark({ rotation: Array.isArray(v) ? v[0] : v })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <MoveHorizontal className="w-3 h-3 text-zinc-500" />
+                                                    <Label className="text-[9px] font-black text-zinc-500 uppercase">H-Offset</Label>
+                                                </div>
+                                                <Slider
+                                                    value={[paperData.watermark?.hOffset || 0]}
+                                                    max={500} min={-500} step={10}
+                                                    onValueChange={(v) => updateWatermark({ hOffset: Array.isArray(v) ? v[0] : v })}
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <MoveVertical className="w-3 h-3 text-zinc-500" />
+                                                    <Label className="text-[9px] font-black text-zinc-500 uppercase">V-Offset</Label>
+                                                </div>
+                                                <Slider
+                                                    value={[paperData.watermark?.vOffset || 0]}
+                                                    max={500} min={-500} step={10}
+                                                    onValueChange={(v) => updateWatermark({ vOffset: Array.isArray(v) ? v[0] : v })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2">
+                                            <Button
+                                                variant="outline"
+                                                className={cn("flex-1 text-[9px] font-black uppercase h-8 border-white/5", paperData.watermark?.grayscale && "bg-emerald-500/10 text-emerald-500 border-emerald-500/20")}
+                                                onClick={() => updateWatermark({ grayscale: !paperData.watermark?.grayscale })}
+                                            >
+                                                Grayscale
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className={cn("flex-1 text-[9px] font-black uppercase h-8 border-white/5", paperData.watermark?.invert && "bg-emerald-500/10 text-emerald-500 border-emerald-500/20")}
+                                                onClick={() => updateWatermark({ invert: !paperData.watermark?.invert })}
+                                            >
+                                                Invert
+                                            </Button>
                                         </div>
                                     </div>
                                 </section>
@@ -550,7 +857,6 @@ function PaperEditorContent() {
                         </div>
                     </div>
                 </aside>
-
                 {/* Main Workspace */}
                 <main className="flex-1 bg-[#151515] overflow-auto relative custom-scrollbar p-20 flex flex-col items-center">
                     <div

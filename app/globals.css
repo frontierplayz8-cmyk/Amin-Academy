@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Scheherazade+New:wght@400;700&display=swap');
 @import "tailwindcss";
 
 @font-face {
@@ -12,6 +13,11 @@
 .font-nastaleeq {
   font-family: 'Jameel Noori Nastaleeq', var(--font-noto-nastaliq-urdu), serif !important;
   line-height: 2 !important;
+}
+
+.font-arabic {
+  font-family: 'Amiri', 'Scheherazade New', serif !important;
+  line-height: 1.8 !important;
 }
 
 [dir="rtl"] {

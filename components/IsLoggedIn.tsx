@@ -63,7 +63,7 @@ const AuthStatus = () => {
 
                         <DropdownMenuContent
                             sideOffset={8}
-                            className="dark bg-popover text-popover-foreground border border-border w-48 shadow-xl"
+                            className="dark bg-popover z-100 text-popover-foreground border border-border w-48 shadow-xl"
                         >
                             <DropdownMenuLabel className="px-2 py-2 text-xs font-semibold text-muted-foreground tracking-wider border-b border-border/50 mb-1">
                                 {username}
