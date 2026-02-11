@@ -21,9 +21,9 @@ import { toast } from 'sonner'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { cn } from '@/lib/utils'
-import { PaperRenderer } from '@/components/PaperRenderer'
 import { useAuth } from '@/context/AuthContext'
 import { ScholarPanel } from '@/components/scholar/ScholarPanel'
+import { PaperRenderer } from '@/components/PaperRenderer'
 
 function ArchitectStudioContent() {
     const router = useRouter()

@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useEffect, useRef } from 'react'
+import 'katex/dist/katex.min.css'
+import katex from 'katex'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Bot, User, MessageSquare } from 'lucide-react'
 import { cn } from "@/lib/utils"
@@ -16,6 +18,31 @@ interface Message {
 interface TranscriptViewerProps {
     messages: Message[]
     isOpen: boolean
+}
+
+function MathContent({ content, className }: { content: string, className?: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (containerRef.current) {
+            let processed = content
+                .replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: true, throwOnError: false }); }
+                    catch { return match; }
+                })
+                .replace(/\$(.*?)\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: false, throwOnError: false }); }
+                    catch { return match; }
+                });
+
+            if (processed === content && (content.includes('^') || content.includes('_') || content.includes('='))) {
+                if (content.length < 50 && !content.includes(' ')) {
+                    try { processed = katex.renderToString(content, { throwOnError: false }); } catch { }
+                }
+            }
+            containerRef.current.innerHTML = processed;
+        }
+    }, [content]);
+    return <div ref={containerRef} className={className} />;
 }
 
 export default function TranscriptViewer({ messages, isOpen }: TranscriptViewerProps) {
@@ -82,12 +109,13 @@ export default function TranscriptViewer({ messages, isOpen }: TranscriptViewerP
                                                 </span>
                                             </div>
 
-                                            <p className={cn(
-                                                "text-sm md:text-base leading-snug font-medium break-words",
-                                                msg.role === 'user' ? "text-emerald-50/80" : "text-zinc-200"
-                                            )}>
-                                                {msg.content}
-                                            </p>
+                                            <MathContent
+                                                content={msg.content}
+                                                className={cn(
+                                                    "text-sm md:text-base leading-snug font-medium break-words",
+                                                    msg.role === 'user' ? "text-emerald-50/80" : "text-zinc-200"
+                                                )}
+                                            />
                                         </div>
 
                                         {/* Minimal Symbol */}

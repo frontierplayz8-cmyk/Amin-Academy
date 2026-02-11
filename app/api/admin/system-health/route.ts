@@ -7,10 +7,14 @@ export const GET = async (req: Request) => {
         // Auth Check
         const authHeader = req.headers.get('Authorization')
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            // Allow unauthenticated for visual demo if needed, but better to secure. 
-            // For this specific 'health' component which might load fast, let's keep it checking.
-            // Actually, the client component might not always have the token ready immediately if not passed.
-            // Let's assume the client passes the token.
+            return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+        }
+
+        const token = authHeader.split('Bearer ')[1]
+        try {
+            await adminAuth.verifyIdToken(token)
+        } catch (e) {
+            return NextResponse.json({ message: 'Invalid Token' }, { status: 401 })
         }
 
         // Count documents (Parallel)

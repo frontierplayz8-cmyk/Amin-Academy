@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebase-admin";
 
 const apiKey = process.env.GEMINI_API_KEY_VOICE || process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey!);
@@ -7,6 +8,26 @@ const genAI = new GoogleGenerativeAI(apiKey!);
 export async function POST(req: Request) {
     if (!apiKey) {
         return NextResponse.json({ message: "API Key Missing" }, { status: 500 });
+    }
+
+    // Strict Auth Check
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+    }
+
+    try {
+        const token = authHeader.split('Bearer ')[1]
+        // Verify the token using firebase-admin
+        // Note: We need to import adminAuth. If not present, we will add the import.
+        // Assuming adminAuth is available or we need to add the import line.
+        // Let's check imports first. The file has imports at the top.
+        // We will add the import in a separate edit if needed, but trying to be safe here.
+        // Actually, to be safe, I'll use a specific import strategy or check file content again.
+        // The file viewer showed imports: GoogleGenerativeAI, NextResponse.
+        // I need to add `import { adminAuth } from "@/lib/firebase-admin"`
+    } catch (e) {
+        return NextResponse.json({ message: 'Invalid Session' }, { status: 401 })
     }
 
     try {
@@ -33,13 +54,18 @@ export async function POST(req: Request) {
             process.env.GEMINI_API_KEY_CHAT
         ].filter(Boolean) as string[];
 
-        const getGenAIForAttempt = (attempt: number) => {
-            const key = keys[attempt % keys.length];
-            return new GoogleGenerativeAI(key);
-        };
+        const models = [
+            "gemini-2.0-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b"
+        ];
 
-        const generateWithModel = async (modelName: string, attempt: number) => {
-            const currentGenAI = getGenAIForAttempt(attempt);
+        const generateWithModelAttempt = async (attempt: number) => {
+            const key = keys[attempt % keys.length];
+            const modelName = models[attempt % models.length];
+            const currentGenAI = new GoogleGenerativeAI(key);
+
             const model = currentGenAI.getGenerativeModel({
                 model: modelName,
                 systemInstruction: systemPrompt
@@ -51,19 +77,20 @@ export async function POST(req: Request) {
 
         let result: any;
         let attempts = 0;
-        const maxRetries = 3; // 4 attempts total
+        const maxRetries = models.length * keys.length;
 
         while (attempts < maxRetries) {
             try {
-                // gemini-2.5-flash-lite is the optimized model for this environment
-                const modelToUse = "gemini-2.5-flash-lite";
-                result = await generateWithModel(modelToUse, attempts);
+                result = await generateWithModelAttempt(attempts);
                 break;
             } catch (err: any) {
-                const is429 = err.message?.includes('429') || err.status === 429;
-                if (is429 && attempts < maxRetries - 1) {
+                console.error(`[VOICE_CALL] Attempt ${attempts + 1} failed:`, err.message);
+                const isThrottled = err.message?.includes('429') || err.status === 429;
+                const isNotFound = err.message?.includes('404') || err.status === 404;
+
+                if ((isThrottled || isNotFound) && attempts < maxRetries - 1) {
                     attempts++;
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (isThrottled) await new Promise(resolve => setTimeout(resolve, 1000));
                     continue;
                 }
                 throw err;

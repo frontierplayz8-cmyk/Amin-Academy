@@ -263,7 +263,6 @@ export default function ExamGeneratorModal({ isOpen, setIsOpen, initialConfig, r
                 })
                 const saveData = await saveRes.json()
                 if (saveData.success && saveData.exam) {
-                    console.log("DB_SAVE_SUCCESS", saveData.exam.id)
                     savedDbId = saveData.exam.id
                 } else {
                     console.error("DB_SAVE_FAIL_DATA", saveData)
@@ -278,8 +277,8 @@ export default function ExamGeneratorModal({ isOpen, setIsOpen, initialConfig, r
                 timestamp: new Date().toLocaleString(),
                 subject: grade === "Urdu" || grade === "Islamiat" ? grade : subject,
                 chapters: finalChapters,
-                data: paperData,
                 config: genConfig
+                // Data excluded to minimize localStorage usage
             }
 
             const existingHistory = JSON.parse(localStorage.getItem('examPaperHistory') || '[]')

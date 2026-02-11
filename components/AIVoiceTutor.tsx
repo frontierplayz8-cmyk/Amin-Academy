@@ -61,6 +61,8 @@ export default function AIVoiceTutor() {
     const [volume, setVolume] = useState(1.0)
     const [showSettings, setShowSettings] = useState(false)
     const [showTranscript, setShowTranscript] = useState(false)
+    const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([])
+    const [selectedSystemVoice, setSelectedSystemVoice] = useState<string>('')
 
     // Voice settings
     const [useGeminiVoice, setUseGeminiVoice] = useState(true)
@@ -91,6 +93,9 @@ export default function AIVoiceTutor() {
     const callTimerRef = useRef<NodeJS.Timeout | null>(null)
     const synthRef = useRef<SpeechSynthesis | null>(null)
     const messagesRef = useRef<Message[]>([])
+    const speechQueue = useRef<string[]>([])
+    const isQueueProcessing = useRef(false)
+    const spokenContentRef = useRef<string>('')
 
     // Update subjects when grade changes
     useEffect(() => {
@@ -121,8 +126,32 @@ export default function AIVoiceTutor() {
             // Load saved settings
             const savedVoice = localStorage.getItem('call-gemini-voice')
             const savedVoiceId = localStorage.getItem('call-voice-id')
+            const savedSystemVoice = localStorage.getItem('call-system-voice')
             if (savedVoice) setUseGeminiVoice(savedVoice === 'true')
             if (savedVoiceId) setGeminiVoiceId(savedVoiceId)
+            if (savedSystemVoice) setSelectedSystemVoice(savedSystemVoice)
+
+            // Load and monitor voices
+            const loadVoices = () => {
+                const available = window.speechSynthesis.getVoices()
+                if (available.length > 0) {
+                    const filtered = available.filter(v => v.lang.includes('en') || v.lang.includes('ur'))
+                    setSystemVoices(filtered)
+
+                    if (!selectedSystemVoice) {
+                        const defaultVoice = filtered.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
+                            filtered.find(v => v.lang === 'en-US') ||
+                            filtered[0]
+                        if (defaultVoice) {
+                            setSelectedSystemVoice(defaultVoice.name)
+                            localStorage.setItem('call-system-voice', defaultVoice.name)
+                        }
+                    }
+                }
+            }
+
+            loadVoices()
+            window.speechSynthesis.onvoiceschanged = loadVoices
         }
     }, [])
 
@@ -131,8 +160,9 @@ export default function AIVoiceTutor() {
         if (typeof window !== 'undefined') {
             localStorage.setItem('call-gemini-voice', String(useGeminiVoice))
             localStorage.setItem('call-voice-id', geminiVoiceId)
+            localStorage.setItem('call-system-voice', selectedSystemVoice)
         }
-    }, [useGeminiVoice, geminiVoiceId])
+    }, [useGeminiVoice, geminiVoiceId, selectedSystemVoice])
 
     // Call timer
     useEffect(() => {
@@ -248,6 +278,7 @@ export default function AIVoiceTutor() {
 
     const stopSpeakingAi = () => {
         setIsAISpeaking(false)
+        speechQueue.current = []
         if (synthRef.current) synthRef.current.cancel()
         if (audioRef.current) {
             audioRef.current.pause()
@@ -305,6 +336,22 @@ export default function AIVoiceTutor() {
         }
     }, [isAISpeaking, isCallActive, isMuted])
 
+    const addToQueue = (text: string) => {
+        if (!text.trim()) return
+        speechQueue.current.push(text)
+        processQueue()
+    }
+
+    const processQueue = async () => {
+        if (isQueueProcessing.current || speechQueue.current.length === 0) return
+        isQueueProcessing.current = true
+        while (speechQueue.current.length > 0) {
+            const nextText = speechQueue.current.shift()
+            if (nextText) await speak(nextText)
+        }
+        isQueueProcessing.current = false
+    }
+
     const handleUserSpeechEnd = async (transcript: string) => {
         if (isProcessing || isAISpeaking) return
         const sanitized = sanitizeTranscript(transcript)
@@ -327,16 +374,52 @@ export default function AIVoiceTutor() {
             })
 
             if (!response.ok) throw new Error('Failed to get AI response')
-            const result = await response.json()
-            const aiContent = result.message
 
-            if (!aiContent.trim()) throw new Error('Empty AI response')
+            const reader = response.body?.getReader()
+            if (!reader) throw new Error('No reader')
 
-            const aiMessage: Message = { role: 'assistant', content: aiContent, timestamp: new Date() }
-            const finalMessages = [...updatedMessages, aiMessage]
-            setMessages(finalMessages)
-            messagesRef.current = finalMessages
-            await speak(aiContent)
+            let aiContent = ""
+            spokenContentRef.current = ""
+
+            // Initial AI message
+            const aiMsg: Message = { role: 'assistant', content: "", timestamp: new Date() }
+            setMessages(prev => [...prev, aiMsg])
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                const chunk = new TextDecoder().decode(value)
+                aiContent += chunk
+
+                // Update UI stream
+                setMessages(prev => {
+                    const last = prev[prev.length - 1]
+                    if (last && last.role === 'assistant') {
+                        return [...prev.slice(0, -1), { ...last, content: aiContent }]
+                    }
+                    return prev
+                })
+
+                // Queue sentences
+                const remaining = aiContent.substring(spokenContentRef.current.length)
+                const sentences = remaining.match(/.*?[.!?](\s|$)/g)
+                if (sentences) {
+                    for (const s of sentences) {
+                        addToQueue(s.trim())
+                        spokenContentRef.current += s
+                    }
+                }
+            }
+
+            // Sync messages ref at the end
+            messagesRef.current = [...updatedMessages, { role: 'assistant', content: aiContent, timestamp: new Date() }]
+
+            // Final bit
+            if (aiContent.length > spokenContentRef.current.length) {
+                addToQueue(aiContent.substring(spokenContentRef.current.length).trim())
+            }
+
         } catch (error: any) {
             console.error('AI response error:', error)
             toast.error('AI Tutor is busy.')
@@ -345,55 +428,66 @@ export default function AIVoiceTutor() {
         }
     }
 
-    const speak = async (text: string) => {
-        if (synthRef.current) synthRef.current.cancel()
-        if (audioRef.current) {
-            audioRef.current.pause()
-            audioRef.current.currentTime = 0
-        }
-        setIsAISpeaking(true)
+    const speak = (text: string): Promise<void> => {
+        return new Promise(async (resolve) => {
+            if (!text) return resolve()
+            if (synthRef.current) synthRef.current.cancel()
+            if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current.currentTime = 0
+            }
+            setIsAISpeaking(true)
 
-        if (useGeminiVoice) {
-            try {
-                const response = await fetch('/api/ai/text-to-speech', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, voiceId: geminiVoiceId })
-                })
-                if (!response.ok) { speakStandard(text); return; }
-                const blob = await response.blob()
-                if (blob.size === 0) { speakStandard(text); return; }
-                const url = URL.createObjectURL(blob)
-                if (audioRef.current) {
-                    audioRef.current.src = url
-                    audioRef.current.volume = volume
-                    audioRef.current.onplay = () => setIsAISpeaking(true)
-                    audioRef.current.onended = () => { setIsAISpeaking(false); URL.revokeObjectURL(url); }
-                    audioRef.current.onerror = () => { setIsAISpeaking(false); URL.revokeObjectURL(url); speakStandard(text); }
-                    await audioRef.current.play()
-                }
-            } catch (error) { speakStandard(text); }
-        } else { speakStandard(text); }
+            if (useGeminiVoice) {
+                try {
+                    const response = await fetch('/api/ai/text-to-speech', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text, voiceId: geminiVoiceId })
+                    })
+                    if (!response.ok) { await speakStandard(text); return resolve(); }
+                    const blob = await response.blob()
+                    if (blob.size === 0) { await speakStandard(text); return resolve(); }
+                    const url = URL.createObjectURL(blob)
+                    if (audioRef.current) {
+                        audioRef.current.src = url
+                        audioRef.current.volume = volume
+                        audioRef.current.onended = () => { setIsAISpeaking(false); URL.revokeObjectURL(url); resolve(); }
+                        audioRef.current.onerror = () => { setIsAISpeaking(false); URL.revokeObjectURL(url); resolve(); }
+                        await audioRef.current.play()
+                    } else resolve()
+                } catch (error) { await speakStandard(text); resolve(); }
+            } else {
+                await speakStandard(text);
+                resolve();
+            }
+        })
     }
 
-    const speakStandard = (text: string) => {
-        if (!synthRef.current) return
-        try {
-            synthRef.current.cancel()
-            setTimeout(() => {
-                if (!synthRef.current) return
-                const utterance = new SpeechSynthesisUtterance(text)
-                utterance.volume = volume
-                const voices = synthRef.current.getVoices()
-                const googleVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('US')) ||
-                    voices.find(v => v.lang === 'en-US')
-                if (googleVoice) utterance.voice = googleVoice
-                utterance.onstart = () => setIsAISpeaking(true)
-                utterance.onend = () => setIsAISpeaking(false)
-                utterance.onerror = () => setIsAISpeaking(false)
-                synthRef.current.speak(utterance)
-            }, 50)
-        } catch (error) { setIsAISpeaking(false); }
+    const speakStandard = (text: string): Promise<void> => {
+        return new Promise((resolve) => {
+            if (!synthRef.current) return resolve()
+            try {
+                synthRef.current.cancel()
+                setTimeout(() => {
+                    if (!synthRef.current) return resolve()
+                    const utterance = new SpeechSynthesisUtterance(text)
+                    utterance.volume = volume
+
+                    const voices = synthRef.current.getVoices()
+                    const voice = voices.find(v => v.name === selectedSystemVoice) ||
+                        voices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
+                        voices[0]
+
+                    if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+
+                    utterance.onstart = () => setIsAISpeaking(true)
+                    utterance.onend = () => { setIsAISpeaking(false); resolve(); }
+                    utterance.onerror = () => { setIsAISpeaking(false); resolve(); }
+                    synthRef.current.speak(utterance)
+                }, 50)
+            } catch (error) { setIsAISpeaking(false); resolve(); }
+        })
     }
 
     const handleVisualizerClick = () => {
@@ -424,9 +518,9 @@ export default function AIVoiceTutor() {
                                 <Switch checked={useGeminiVoice} onCheckedChange={setUseGeminiVoice} />
                             </div>
 
-                            {useGeminiVoice && (
+                            {useGeminiVoice ? (
                                 <div className="space-y-3">
-                                    <Label className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] ml-1">Voice Profile</Label>
+                                    <Label className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] ml-1">Voice Profile (Gemini)</Label>
                                     <Select value={geminiVoiceId} onValueChange={(v) => v && setGeminiVoiceId(v)}>
                                         <SelectTrigger className="w-full bg-zinc-900/50 border-white/5 rounded-2xl h-14 px-6 text-sm">
                                             <SelectValue placeholder="Select a voice" />
@@ -435,6 +529,26 @@ export default function AIVoiceTutor() {
                                             {geminiVoices.map((v) => (
                                                 <SelectItem key={v.id} value={v.id} className="focus:bg-emerald-500 focus:text-black">{v.name}</SelectItem>
                                             ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <Label className="text-[10px] uppercase font-black text-zinc-500 tracking-[0.2em] ml-1">System Voice (Free)</Label>
+                                    <Select value={selectedSystemVoice} onValueChange={(v) => v && setSelectedSystemVoice(v)}>
+                                        <SelectTrigger className="w-full bg-zinc-900/50 border-white/5 rounded-2xl h-14 px-6 text-sm">
+                                            <SelectValue placeholder="Default System Voice" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-zinc-900 border-white/5 text-white rounded-xl">
+                                            {systemVoices.length > 0 ? (
+                                                systemVoices.map((v, i) => (
+                                                    <SelectItem key={`${v.name}-${i}`} value={v.name} className="focus:bg-emerald-500 focus:text-black">
+                                                        {v.name} ({v.lang})
+                                                    </SelectItem>
+                                                ))
+                                            ) : (
+                                                <div className="p-4 text-xs text-zinc-500 italic">No system voices detected</div>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -592,7 +706,7 @@ export default function AIVoiceTutor() {
                                     {/* Dynamic Status Text */}
                                     <div className="mt-6 text-center h-6">
                                         {isAISpeaking ? (
-                                            <p className="text-zinc-200 text-sm font-bold animate-in fade-in slide-in-from-bottom-2 uppercase tracking-wide">Gemini Brain Active</p>
+                                            <p className="text-zinc-200 text-sm font-bold animate-in fade-in slide-in-from-bottom-2 uppercase tracking-wide">Ai Tutor Active</p>
                                         ) : isProcessing ? (
                                             <p className="text-emerald-500 text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">Processing Query</p>
                                         ) : (

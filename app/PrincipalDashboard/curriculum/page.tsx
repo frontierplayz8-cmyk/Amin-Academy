@@ -11,7 +11,10 @@ import {
     AlertCircle,
     RotateCcw,
     Search,
-    BookMarked
+    BookMarked,
+    Edit2,
+    Check,
+    X as CloseIcon
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { useAuthenticatedFetch } from "@/lib/useAuthenticatedFetch"
@@ -36,6 +39,8 @@ export default function CurriculumManagementPage() {
     const [selectedSubject, setSelectedSubject] = useState("")
     const [searchQuery, setSearchQuery] = useState("")
     const [newChapter, setNewChapter] = useState("")
+    const [editingChapterIdx, setEditingChapterIdx] = useState<number | null>(null)
+    const [editingValue, setEditingValue] = useState("")
 
     useEffect(() => {
         fetchCurriculum()
@@ -108,6 +113,28 @@ export default function CurriculumManagementPage() {
         const newData = { ...curriculumData }
         newData[selectedGrade][selectedSubject] = newData[selectedGrade][selectedSubject].filter((c: string) => c !== chapter)
         setCurriculumData(newData)
+    }
+
+    const startEditing = (chapter: string, idx: number) => {
+        setEditingChapterIdx(idx)
+        setEditingValue(chapter)
+    }
+
+    const cancelEditing = () => {
+        setEditingChapterIdx(null)
+        setEditingValue("")
+    }
+
+    const saveEdit = (idx: number) => {
+        if (!editingValue.trim()) return
+        const newData = { ...curriculumData }
+        const chapters = [...newData[selectedGrade][selectedSubject]]
+        chapters[idx] = editingValue.trim()
+        newData[selectedGrade][selectedSubject] = chapters
+        setCurriculumData(newData)
+        setEditingChapterIdx(null)
+        setEditingValue("")
+        toast.info("Chapter updated in local draft")
     }
 
     if (authLoading || loading) {
@@ -278,25 +305,70 @@ export default function CurriculumManagementPage() {
                         <ScrollArea className="flex-1 pr-4">
                             <div className="grid grid-cols-1 gap-3">
                                 {filteredChapters.length > 0 ? (
-                                    filteredChapters.map((chapter: string) => (
-                                        <div
-                                            key={chapter}
-                                            className="flex items-center justify-between p-5 bg-white/2 border border-white/5 rounded-2xl group hover:border-emerald-500/20 hover:bg-emerald-500/5 transition-all"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-[10px] font-black text-zinc-500 border border-white/5">
-                                                    #{currentChapters.indexOf(chapter) + 1}
-                                                </div>
-                                                <span className="text-sm font-bold text-zinc-200">{chapter}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => removeChapter(chapter)}
-                                                className="p-3 text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    filteredChapters.map((chapter: string) => {
+                                        const originalIdx = currentChapters.indexOf(chapter)
+                                        const isEditing = editingChapterIdx === originalIdx
+
+                                        return (
+                                            <div
+                                                key={chapter}
+                                                className={cn(
+                                                    "flex items-center justify-between p-5 bg-white/2 border border-white/5 rounded-2xl group transition-all",
+                                                    isEditing ? "border-emerald-500/50 bg-emerald-500/5" : "hover:border-emerald-500/20 hover:bg-emerald-500/5"
+                                                )}
                                             >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    ))
+                                                <div className="flex items-center gap-4 flex-1">
+                                                    <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-[10px] font-black text-zinc-500 border border-white/5 shrink-0">
+                                                        #{originalIdx + 1}
+                                                    </div>
+                                                    {isEditing ? (
+                                                        <Input
+                                                            value={editingValue}
+                                                            onChange={(e) => setEditingValue(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && saveEdit(originalIdx)}
+                                                            className="bg-zinc-900/50 border-emerald-500/30 text-sm font-bold h-10 px-4 focus:ring-1 ring-emerald-500"
+                                                            autoFocus
+                                                        />
+                                                    ) : (
+                                                        <span className="text-sm font-bold text-zinc-200">{chapter}</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1 ml-4">
+                                                    {isEditing ? (
+                                                        <>
+                                                            <button
+                                                                onClick={() => saveEdit(originalIdx)}
+                                                                className="p-3 text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-colors"
+                                                            >
+                                                                <Check size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={cancelEditing}
+                                                                className="p-3 text-zinc-500 hover:bg-white/5 rounded-xl transition-colors"
+                                                            >
+                                                                <CloseIcon size={18} />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => startEditing(chapter, originalIdx)}
+                                                                className="p-3 text-zinc-600 hover:text-emerald-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                            >
+                                                                <Edit2 size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => removeChapter(chapter)}
+                                                                className="p-3 text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })
                                 ) : (
                                     <div className="flex flex-col items-center justify-center py-20 bg-white/1 border border-dashed border-white/5 rounded-3xl">
                                         <BookOpen className="w-12 h-12 text-zinc-800 mb-4" />

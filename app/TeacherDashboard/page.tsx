@@ -15,7 +15,8 @@ import {
   XCircle,
   Clock,
   Video,
-  ShieldAlert
+  ShieldAlert,
+  ShieldCheck
 } from 'lucide-react'
 import ExamGeneratorModal from '@/components/ExamGeneratorModal'
 import LectureUploadModal from '@/components/LectureUploadModal'
@@ -29,7 +30,7 @@ import { isWithinAcademyRadius, getCurrentPosition } from '@/lib/geofencing'
 const TeacherDashboard = () => {
   const router = useRouter()
   const { authFetch, user: authUser } = useAuthenticatedFetch()
-  const { loading: authLoading } = useAuth()
+  const { loading: authLoading, profile } = useAuth()
 
   // Grade state updated to match DB format (simple numbers/strings)
   const [activeGrade, setActiveGrade] = useState('9')
@@ -278,6 +279,31 @@ const TeacherDashboard = () => {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* New Security Dashboard Card */}
+          <div className="rounded-3xl border border-white/5 bg-zinc-900/20 p-6 flex flex-col relative overflow-hidden group hover:border-emerald-500/20 transition-all duration-500">
+            <div className="absolute top-[-10%] right-[-10%] p-8 bg-emerald-500/5 blur-2xl rounded-full" />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Security Node</h3>
+              <ShieldCheck className={profile?.twoFactorEnabled ? "text-emerald-500" : "text-amber-500 animate-pulse"} size={16} />
+            </div>
+
+            <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest leading-relaxed mb-6">
+              {profile?.twoFactorEnabled
+                ? "Duo-Layer Neural link confirmed. Account is under high-fidelity protection."
+                : "Your advisor credentials are vulnerable. Activate 2FA to secure your faculty node."}
+            </p>
+
+            <button
+              onClick={() => router.push('/profile')}
+              className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${profile?.twoFactorEnabled
+                ? 'bg-zinc-800 text-zinc-400 hover:text-white'
+                : 'bg-amber-500 text-black shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:bg-amber-400'
+                }`}
+            >
+              {profile?.twoFactorEnabled ? "Manage Security" : "Enable 2FA Protection"}
+            </button>
           </div>
         </div>
 

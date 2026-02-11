@@ -1,10 +1,37 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import 'katex/dist/katex.min.css'
+import katex from 'katex'
 import { BrainCircuit, CheckCircle2, ChevronRight, XCircle, Trophy, Loader2, Play, RefreshCw, AlertCircle } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { getSubjectsForGrade, getChaptersForSubject } from '@/app/lib/curriculum-data'
+import { getSubjectsForGrade, getChaptersForSubject, setDynamicCurriculum } from '@/app/lib/curriculum-data'
+
+function MathContent({ content, className }: { content: string, className?: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (containerRef.current) {
+            let processed = content
+                .replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: true, throwOnError: false }); }
+                    catch { return match; }
+                })
+                .replace(/\$(.*?)\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: false, throwOnError: false }); }
+                    catch { return match; }
+                });
+
+            if (processed === content && (content.includes('^') || content.includes('_') || content.includes('='))) {
+                if (content.length < 50 && !content.includes(' ')) {
+                    try { processed = katex.renderToString(content, { throwOnError: false }); } catch { }
+                }
+            }
+            containerRef.current.innerHTML = processed;
+        }
+    }, [content]);
+    return <div ref={containerRef} className={className} />;
+}
 
 export default function QuizPage() {
     const [step, setStep] = useState<'setup' | 'loading' | 'quiz' | 'result'>('setup')
@@ -22,6 +49,21 @@ export default function QuizPage() {
     const [selectedOption, setSelectedOption] = useState<string | null>(null)
     const [answers, setAnswers] = useState<{ question: string, user: string, correct: string, isCorrect: boolean }[]>([])
     const [score, setScore] = useState(0)
+
+    useEffect(() => {
+        const fetchCurriculum = async () => {
+            try {
+                const res = await fetch("/api/admin/curriculum")
+                if (res.ok) {
+                    const data = await res.json()
+                    setDynamicCurriculum(data)
+                }
+            } catch (error) {
+                console.error("Failed to load dynamic curriculum:", error)
+            }
+        }
+        fetchCurriculum()
+    }, [])
 
     // Data Helpers
     const subjects = React.useMemo(() => getSubjectsForGrade(grade), [grade])
@@ -213,9 +255,10 @@ export default function QuizPage() {
 
                         {/* Question Card */}
                         <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-8 mb-8 min-h-[300px] flex flex-col justify-center">
-                            <h2 className="text-2xl font-bold text-white leading-tight mb-8">
-                                {quizData.questions[currentIndex].question}
-                            </h2>
+                            <MathContent
+                                content={quizData.questions[currentIndex].question}
+                                className="text-2xl font-bold text-white leading-tight mb-8"
+                            />
                             <div className="space-y-3">
                                 {quizData.questions[currentIndex].options.map((option: string, i: number) => (
                                     <button
@@ -227,7 +270,7 @@ export default function QuizPage() {
                                             }`}
                                     >
                                         <span className="inline-block w-6 font-mono text-zinc-600 mr-2">{String.fromCharCode(65 + i)}.</span>
-                                        {option}
+                                        <MathContent content={option} className="inline-block" />
                                     </button>
                                 ))}
                             </div>
@@ -286,23 +329,23 @@ export default function QuizPage() {
                                             {ans.isCorrect ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
                                         </div>
                                         <div className="flex-1">
-                                            <p className="font-bold text-white mb-3">{ans.question}</p>
+                                            <MathContent content={ans.question} className="font-bold text-white mb-3" />
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                                 <div className="bg-black/30 p-3 rounded-lg">
                                                     <span className="text-[10px] uppercase font-black text-zinc-500 tracking-wider block mb-1">Your Answer</span>
-                                                    <span className={ans.isCorrect ? 'text-emerald-400' : 'text-red-400'}>{ans.user}</span>
+                                                    <MathContent content={ans.user} className={ans.isCorrect ? 'text-emerald-400' : 'text-red-400'} />
                                                 </div>
                                                 {!ans.isCorrect && (
                                                     <div className="bg-black/30 p-3 rounded-lg border border-emerald-500/20">
                                                         <span className="text-[10px] uppercase font-black text-zinc-500 tracking-wider block mb-1">Correct Answer</span>
-                                                        <span className="text-emerald-400">{ans.correct}</span>
+                                                        <MathContent content={ans.correct} className="text-emerald-400" />
                                                     </div>
                                                 )}
                                             </div>
                                             {!ans.isCorrect && quizData.questions[i].explanation && (
-                                                <div className="mt-3 text-xs text-zinc-400 flex gap-2 items-start">
+                                                <div className="mt-3 text-xs text-zinc-400 flex gap-2 items-start bg-black/20 p-3 rounded-xl">
                                                     <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                                                    {quizData.questions[i].explanation}
+                                                    <MathContent content={quizData.questions[i].explanation} />
                                                 </div>
                                             )}
                                         </div>

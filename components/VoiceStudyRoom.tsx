@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react'
+import 'katex/dist/katex.min.css'
+import katex from 'katex'
 import {
     Mic,
     MicOff,
@@ -28,6 +30,34 @@ interface Message {
     content: string
 }
 
+function MathContent({ content, className }: { content: string, className?: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (containerRef.current) {
+            // Priority: Block math $$, then Inline math $
+            let processed = content
+                .replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: true, throwOnError: false }); }
+                    catch { return match; }
+                })
+                .replace(/\$(.*?)\$/g, (match, formula) => {
+                    try { return katex.renderToString(formula, { displayMode: false, throwOnError: false }); }
+                    catch { return match; }
+                });
+
+            // If no $ signs, check for common math patterns like ^2, x^3
+            if (processed === content && (content.includes('^') || content.includes('_') || content.includes('='))) {
+                // Heuristic: if it looks like math but lacks delimiters, try a cautious render if it's short
+                if (content.length < 50 && !content.includes(' ')) {
+                    try { processed = katex.renderToString(content, { throwOnError: false }); } catch { }
+                }
+            }
+            containerRef.current.innerHTML = processed;
+        }
+    }, [content]);
+    return <div ref={containerRef} className={className} />;
+}
+
 export default function VoiceStudyRoom() {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
@@ -42,7 +72,6 @@ export default function VoiceStudyRoom() {
     const [showReport, setShowReport] = useState(false)
 
     const addLog = (msg: string) => {
-        console.log(`[AUDIO_DEBUG] ${msg}`)
         setDebugLog(prev => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${msg}`])
     }
 
@@ -98,6 +127,9 @@ export default function VoiceStudyRoom() {
     const recognitionRef = useRef<any>(null)
     const synthRef = useRef<SpeechSynthesis | null>(null)
     const audioRef = useRef<HTMLAudioElement | null>(null)
+    const speechQueue = useRef<string[]>([])
+    const isQueueProcessing = useRef(false)
+    const spokenContentRef = useRef<string>('')
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -146,29 +178,30 @@ export default function VoiceStudyRoom() {
             }
 
             // 2. Fetch voices
-            const updateVoices = () => {
+            const loadSystemVoices = () => {
                 const availableVoices = window.speechSynthesis.getVoices()
                 if (availableVoices.length === 0) return
 
                 const filtered = availableVoices.filter(v => v.lang.includes('en') || v.lang.includes('ur'))
                 setVoices(filtered)
 
-                // Only set default if we don't have a selection already set from storage
                 const currentSelection = localStorage.getItem('v-study-voice') || selectedVoice
 
-                if (!currentSelection) {
-                    const naturalVoice = filtered.find(v => v.name.includes('Natural') || v.name.includes('Premium'))
-                    const defaultVoice = naturalVoice || filtered[0] || availableVoices[0]
-
-                    if (defaultVoice) {
-                        setSelectedVoice(defaultVoice.name)
-                        addLog(`Auto-selected default voice: ${defaultVoice.name}`)
+                if (!currentSelection && filtered.length > 0) {
+                    const bestVoice = filtered.find(v => v.name.includes('Google') && v.lang.includes('US')) ||
+                        filtered.find(v => v.lang.includes('en-US')) ||
+                        filtered[0]
+                    if (bestVoice) {
+                        setSelectedVoice(bestVoice.name)
+                        addLog(`Default voice set: ${bestVoice.name}`)
                     }
                 }
             }
 
-            updateVoices()
-            window.speechSynthesis.onvoiceschanged = updateVoices
+            loadSystemVoices()
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadSystemVoices
+            }
         }
     }, []) // Removed dependency, manual selection handled in specific logic
 
@@ -190,130 +223,89 @@ export default function VoiceStudyRoom() {
         }
     }, [messages])
 
-    const speak = async (text: string) => {
-        if (!autoSpeak || !text) return
-        addLog(`Initiating speak: ${text.substring(0, 20)}...`)
-
-        if (usePremiumVoice) {
-            const loadingToast = toast.loading("Synthesizing premium voice...")
-            addLog(`ELEVENLABS: Requesting ${premiumVoiceId}`)
-
-            try {
-                if (synthRef.current) synthRef.current.cancel()
-                if (audioRef.current) {
-                    audioRef.current.pause()
-                    audioRef.current.currentTime = 0
-                }
-
-                setIsSpeaking(true)
-
-                const res = await fetch('/api/ai/text-to-speech', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, voiceId: premiumVoiceId })
-                })
-
-                if (!res.ok) {
-                    const errData = await res.json()
-                    addLog(`API ERROR: ${res.status}`)
-                    if (res.status === 402) {
-                        toast.error("ElevenLabs Character Limit Reached. Switching to system voice.")
-                    }
-                    throw new Error(errData.message || `ElevenLabs API Error: ${res.status}`)
-                }
-
-                const blob = await res.blob()
-                addLog(`Blob received: ${blob.size} bytes`)
-
-                if (blob.size < 100) throw new Error("Audio stream empty")
-
-                const url = URL.createObjectURL(blob)
-
-                if (audioRef.current) {
-                    audioRef.current.src = url
-                    audioRef.current.volume = 1.0
-
-                    audioRef.current.oncanplaythrough = async () => {
-                        try {
-                            addLog("Playback: Starting stream...")
-                            await audioRef.current?.play()
-                            toast.dismiss(loadingToast)
-                        } catch (playErr) {
-                            addLog("PLAYBACK BLOCKED - Interaction required")
-                            toast.dismiss(loadingToast)
-                            setIsSpeaking(false)
-                        }
-                    }
-
-                    audioRef.current.onended = () => {
-                        addLog("Playback: Finished")
-                        setIsSpeaking(false)
-                        URL.revokeObjectURL(url)
-                    }
-
-                    audioRef.current.onerror = (e) => {
-                        addLog("Audio tag playback error")
-                        setIsSpeaking(false)
-                        toast.dismiss(loadingToast)
-                    }
-                }
-            } catch (err: any) {
-                addLog(`Premium Error: ${err.message}`)
-                toast.dismiss(loadingToast)
-                setIsSpeaking(false)
-                speakStandard(text)
-            }
-        } else {
-            speakStandard(text)
-        }
+    const addToQueue = (text: string) => {
+        if (!text.trim()) return
+        // Split by sentences if too long, but usually we get sentences from stream
+        speechQueue.current.push(text)
+        processQueue()
     }
 
-    const speakStandard = (text: string) => {
-        if (!synthRef.current) return
-        addLog("Using system voice fallback")
+    const processQueue = async () => {
+        if (isQueueProcessing.current || speechQueue.current.length === 0) return
+        isQueueProcessing.current = true
 
-        try {
+        while (speechQueue.current.length > 0) {
+            const nextText = speechQueue.current.shift()
+            if (nextText) {
+                await speak(nextText)
+            }
+        }
+
+        isQueueProcessing.current = false
+    }
+
+    const speak = (text: string): Promise<void> => {
+        return new Promise(async (resolve) => {
+            if (!autoSpeak || !text) return resolve()
+            addLog(`Speaking: ${text.substring(0, 30)}...`)
+
+            if (usePremiumVoice) {
+                try {
+                    const res = await fetch('/api/ai/text-to-speech', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text, voiceId: premiumVoiceId })
+                    })
+                    if (!res.ok) throw new Error("TTS API Fail")
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    if (audioRef.current) {
+                        setIsSpeaking(true)
+                        audioRef.current.src = url
+                        audioRef.current.onended = () => {
+                            setIsSpeaking(false)
+                            URL.revokeObjectURL(url)
+                            resolve()
+                        }
+                        audioRef.current.onerror = () => {
+                            setIsSpeaking(false)
+                            resolve()
+                        }
+                        await audioRef.current.play()
+                    } else resolve()
+                } catch (err) {
+                    await speakStandard(text)
+                    resolve()
+                }
+            } else {
+                await speakStandard(text)
+                resolve()
+            }
+        })
+    }
+
+    const speakStandard = (text: string): Promise<void> => {
+        return new Promise((resolve) => {
+            if (!synthRef.current) return resolve()
             synthRef.current.cancel()
 
             setTimeout(() => {
-                if (!synthRef.current) return
                 const utterance = new SpeechSynthesisUtterance(text)
+                const allVoices = window.speechSynthesis.getVoices()
+                const voice = allVoices.find(v => v.name === selectedVoice) ||
+                    allVoices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
+                    allVoices[0]
 
-                const voice = voices.find(v => v.name === selectedVoice) ||
-                    window.speechSynthesis.getVoices().find(v => v.name === selectedVoice) ||
-                    voices.find(v => v.default) ||
-                    voices[0]
+                if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+                utterance.pitch = pitch; utterance.rate = rate;
 
-                if (voice) {
-                    addLog(`System Voice: ${voice.name} (${voice.lang})`)
-                    utterance.voice = voice
-                    utterance.lang = voice.lang
-                } else {
-                    addLog("CRITICAL: No voice found for playback")
-                }
+                utterance.onstart = () => setIsSpeaking(true)
+                utterance.onend = () => { setIsSpeaking(false); resolve(); }
+                utterance.onerror = () => { setIsSpeaking(false); resolve(); }
 
-                utterance.pitch = pitch
-                utterance.rate = rate
-                utterance.volume = 1.0
-
-                utterance.onstart = () => {
-                    addLog("System speech started")
-                    setIsSpeaking(true)
-                }
-                utterance.onend = () => {
-                    addLog("System speech ended")
-                    setIsSpeaking(false)
-                }
-                utterance.onerror = (e) => {
-                    addLog(`System Speech Error: ${e.error}`)
-                    setIsSpeaking(false)
-                }
-
-                synthRef.current.speak(utterance)
-            }, 100);
-        } catch (err: any) {
-            addLog(`System Error: ${err.message}`)
-        }
+                window.speechSynthesis.speak(utterance)
+            }, 50)
+        })
     }
 
     const toggleListening = () => {
@@ -366,8 +358,8 @@ export default function VoiceStudyRoom() {
             if (!reader) throw new Error("No reader available")
 
             const decoder = new TextEncoder()
+            spokenContentRef.current = ""
             let aiContent = ""
-            let spokenContent = ""
 
             // Initial empty AI message for streaming
             const aiMsg: Message = { role: 'ai', content: "" }
@@ -383,31 +375,26 @@ export default function VoiceStudyRoom() {
                 // Update UI in real-time
                 setMessages(prev => {
                     const last = prev[prev.length - 1]
-                    if (last && last.role === 'ai') {
-                        return [...prev.slice(0, -1), { ...last, content: aiContent }]
-                    }
+                    if (last && last.role === 'ai') return [...prev.slice(0, -1), { ...last, content: aiContent }]
                     return prev
                 })
 
-                // Sentence-by-sentence voice trigger (Advanced Latency Reduction)
-                if (autoSpeak && !usePremiumVoice) {
-                    const sentenceMatch = aiContent.substring(spokenContent.length).match(/.*?[.!?](\s|$)/g)
-                    if (sentenceMatch) {
-                        for (const sentence of sentenceMatch) {
-                            speakStandard(sentence.trim())
-                            spokenContent += sentence
+                // Sentence-by-sentence queue trigger
+                if (autoSpeak) {
+                    const remaining = aiContent.substring(spokenContentRef.current.length)
+                    const sentences = remaining.match(/.*?[.!?](\s|$)/g)
+                    if (sentences) {
+                        for (const s of sentences) {
+                            addToQueue(s.trim())
+                            spokenContentRef.current += s
                         }
                     }
                 }
             }
 
-            // Fallback for premium or remaining text
-            if (autoSpeak) {
-                if (usePremiumVoice) {
-                    speak(aiContent)
-                } else if (aiContent.length > spokenContent.length) {
-                    speakStandard(aiContent.substring(spokenContent.length).trim())
-                }
+            // Final bit of text if no punctuation
+            if (autoSpeak && aiContent.length > spokenContentRef.current.length) {
+                addToQueue(aiContent.substring(spokenContentRef.current.length).trim())
             }
 
         } catch (error: any) {
@@ -468,6 +455,7 @@ export default function VoiceStudyRoom() {
 
     const stopSpeakingAi = () => {
         setIsSpeaking(false)
+        speechQueue.current = []
         if (synthRef.current) synthRef.current.cancel()
         if (audioRef.current) {
             audioRef.current.pause()
@@ -735,7 +723,7 @@ export default function VoiceStudyRoom() {
                             ? 'bg-emerald-600 text-black font-bold rounded-tr-none'
                             : 'bg-zinc-900 border border-white/5 text-zinc-200 rounded-tl-none'
                             }`}>
-                            <p className="text-sm leading-relaxed">{msg.content}</p>
+                            <MathContent content={msg.content} className="text-sm leading-relaxed" />
                         </div>
                     </div>
                 ))}

@@ -31,7 +31,6 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { CURRICULUM_DATA } from "@/app/lib/curriculum-data"
 import {
     Tooltip,
     TooltipContent,
@@ -40,7 +39,7 @@ import {
 } from "@/components/ui/tooltip"
 import { RotateCcw, Sparkles, Filter, LayoutDashboard, Database, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { GRADES, STREAMS, getSubjectsForGradeAndStream, getChaptersForSubject, setDynamicCurriculum } from '@/app/lib/curriculum-data'
+import { GRADES, STREAMS, getSubjectsForGradeAndStream, getChaptersForSubject, setDynamicCurriculum, getSubjectsForGrade } from '@/app/lib/curriculum-data'
 import { buildInternetSystemPrompt } from '@/app/lib/ai-prompt-builder'
 import { useAuthenticatedFetch } from "@/lib/useAuthenticatedFetch"
 import { generateTestInternet } from '@/app/actions/gemini'
@@ -152,11 +151,6 @@ export default function GenerateTestPage() {
                 } : undefined
             })
 
-            console.log('📋 GENERATION DEBUG - Subject:', config.subject);
-            console.log('📋 Normalized:', config.subject?.toLowerCase().replace(/[_\s-]/g, ''));
-            console.log('📋 Prompt includes TARJAMA:', systemPrompt.includes('TARJAMA'));
-            console.log('📋 Prompt includes quranData:', systemPrompt.includes('quranData'));
-
             toast.loading("Gathering Data from Internet...", { id: toastId })
 
             const response = await generateTestInternet({ systemPrompt })
@@ -168,12 +162,6 @@ export default function GenerateTestPage() {
             }
 
             const paperData = JSON.parse(jsonMatch[0])
-
-            console.log('📄 Paper Data Keys:', Object.keys(paperData));
-            console.log('📄 Has quranData:', !!paperData.quranData);
-            if (paperData.quranData) {
-                console.log('📄 quranData:', paperData.quranData);
-            }
 
             const genConfig = {
                 grade: config.grade,
@@ -334,7 +322,7 @@ export default function GenerateTestPage() {
                                     <button
                                         key={g}
                                         onClick={() => {
-                                            const subjects = CURRICULUM_DATA[g] ? Object.keys(CURRICULUM_DATA[g]) : []
+                                            const subjects = getSubjectsForGrade(g)
                                             setConfig({
                                                 ...config,
                                                 grade: g,
@@ -360,7 +348,7 @@ export default function GenerateTestPage() {
                         <div className="space-y-4">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Core Subject</Label>
                             <div className="flex flex-wrap gap-2">
-                                {(CURRICULUM_DATA && config.grade && CURRICULUM_DATA[config.grade] ? Object.keys(CURRICULUM_DATA[config.grade]) : []).map((s) => (
+                                {getSubjectsForGrade(config.grade).map((s) => (
                                     <button
                                         key={s}
                                         onClick={() => setConfig({ ...config, subject: s, selectedChapters: [] })}
@@ -402,10 +390,10 @@ export default function GenerateTestPage() {
                                 </div>
                             </div>
 
-                            {CURRICULUM_DATA && config.grade && config.subject && CURRICULUM_DATA[config.grade]?.[config.subject]?.length > 0 ? (
+                            {getChaptersForSubject(config.grade, config.subject).length > 0 ? (
                                 <ScrollArea className="h-48 rounded-2xl border border-white/5 bg-zinc-950/50 p-4">
                                     <div className="flex flex-wrap gap-2">
-                                        {(CURRICULUM_DATA[config.grade][config.subject] as string[]).map((ch: string) => (
+                                        {getChaptersForSubject(config.grade, config.subject).map((ch: string) => (
                                             <button
                                                 key={ch}
                                                 onClick={() => {

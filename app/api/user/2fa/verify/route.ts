@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { verifySync } from 'otplib'
+const { verifySync } = require('otplib');
 
-export const POST = async (req: Request) => {
+export const POST = async (req: NextRequest) => {
     try {
         const authHeader = req.headers.get('Authorization')
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -15,47 +15,42 @@ export const POST = async (req: Request) => {
 
         const { secret, code, action } = await req.json()
 
-        const userRef = adminDb.collection('users').doc(uid)
-        const userDoc = await userRef.get()
-        const user = userDoc.data()
-
-        if (!userDoc.exists) {
-            return NextResponse.json({ message: 'User not found' }, { status: 404 })
+        if (!code) {
+            return NextResponse.json({ message: 'Code required' }, { status: 400 })
         }
 
-        if (action === 'enable') {
-            const isValid = verifySync({ token: code, secret })
-            if (!isValid) {
-                return NextResponse.json({ message: 'Invalid verification code' }, { status: 400 })
-            }
-
-            await userRef.update({
-                twoFactorSecret: secret,
-                twoFactorEnabled: true
-            })
-
-            return NextResponse.json({
-                success: true,
-                message: '2FA enabled successfully'
-            })
-        } else if (action === 'disable') {
-            const isValid = verifySync({ token: code, secret: user?.twoFactorSecret })
-            if (!isValid) {
-                return NextResponse.json({ message: 'Invalid verification code' }, { status: 400 })
-            }
-
-            await userRef.update({
-                twoFactorSecret: '',
-                twoFactorEnabled: false
-            })
-
-            return NextResponse.json({
-                success: true,
-                message: '2FA disabled successfully'
-            })
+        let userSecret = secret
+        if (!userSecret) {
+            const userDoc = await adminDb.collection('users').doc(uid).get()
+            userSecret = userDoc.data()?.twoFactorSecret
         }
 
-        return NextResponse.json({ message: 'Invalid action' }, { status: 400 })
+        if (!userSecret) {
+            return NextResponse.json({ message: 'Security context missing' }, { status: 400 })
+        }
+
+        const isValid = verifySync({
+            token: code,
+            secret: userSecret
+        });
+
+        if (isValid) {
+            if (action === 'enable') {
+                await adminDb.collection('users').doc(uid).update({
+                    twoFactorEnabled: true,
+                    twoFactorSecret: userSecret
+                })
+            } else if (action === 'disable') {
+                await adminDb.collection('users').doc(uid).update({
+                    twoFactorEnabled: false,
+                    twoFactorSecret: adminDb.FieldValue.delete()
+                })
+            }
+
+            return NextResponse.json({ success: true, message: 'Identity Verified' })
+        } else {
+            return NextResponse.json({ success: false, message: 'Invalid 6-digit sync code' })
+        }
 
     } catch (error) {
         console.error("2FA Verify Error:", error)

@@ -7,10 +7,8 @@ import {
     AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline,
     Type, Palette, GripVertical,
     Trash2, Sparkles, Layout, Image as ImageIcon,
-    RotateCcw, ArrowUp, ArrowDown, X, Box, Maximize2,
-    Upload, Eye, EyeOff, Layers, MoveHorizontal, MoveVertical, Shrink,
-    Rows
-} from 'lucide-react'
+    RotateCcw, ArrowUp, ArrowDown, X, 
+    Upload, Layers, MoveHorizontal, MoveVertical, Shrink} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -22,9 +20,9 @@ import { toast } from 'sonner'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { cn } from '@/lib/utils'
-import { PaperRenderer } from '@/components/PaperRenderer'
 import { useAuth } from '@/context/AuthContext'
 import { ScholarPanel } from '@/components/scholar/ScholarPanel'
+import { PaperRenderer } from '@/components/PaperRenderer'
 
 function PaperEditorContent() {
     const router = useRouter()
@@ -166,14 +164,6 @@ function PaperEditorContent() {
         })
     }
 
-    const toggleSectionVisibility = (key: string) => {
-        const currentOrder = paperData.sectionOrder || []
-        if (currentOrder.includes(key)) {
-            setPaperData({ ...paperData, sectionOrder: currentOrder.filter((k: string) => k !== key) })
-        } else {
-            setPaperData({ ...paperData, sectionOrder: [...currentOrder, key] })
-        }
-    }
 
     const deleteSection = (key: string) => {
         const currentOrder = paperData.sectionOrder || []

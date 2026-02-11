@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import QRCode from 'qrcode'
-import { generateSecret, generateURI } from 'otplib'
+const { generateSecret, generateURI } = require('otplib');
 
-export const GET = async (req: Request) => {
+export const GET = async (req: NextRequest) => {
     try {
         const authHeader = req.headers.get('Authorization')
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -22,12 +22,12 @@ export const GET = async (req: Request) => {
         }
 
         // Generate a new secret for the user
-        const secret = generateSecret()
+        const secret = generateSecret();
         const qrCodeUrl = await QRCode.toDataURL(generateURI({
             secret,
             label: user?.email || 'User',
             issuer: 'Amin Academy'
-        }))
+        }));
 
         return NextResponse.json({
             success: true,

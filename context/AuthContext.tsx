@@ -14,6 +14,8 @@ interface UserProfile {
     designation?: string;
     joiningDate?: string;
     salary?: number;
+    twoFactorEnabled?: boolean;
+    twoFactorSecret?: string;
 }
 
 interface AuthContextType {

@@ -50,11 +50,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from '@/lib/utils'
 
 const PrincipalDashboard = () => {
     const router = useRouter()
     const { authFetch, user: authUser } = useAuthenticatedFetch()
-    const { loading: authLoading } = useAuth()
+    const { loading: authLoading, profile } = useAuth()
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -208,6 +209,46 @@ const PrincipalDashboard = () => {
         }
     }
 
+    const handleUserAction = async (userId: string, action: 'ban' | 'unban', username: string) => {
+        const tid = toast.loading(`Executing ${action} protocol on ${username}...`)
+        try {
+            const res = await authFetch('/api/admin/user-action', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action })
+            })
+            const data = await res.json()
+            if (data.success) {
+                toast.success(data.message, { id: tid })
+                setUsers(users.map(u => u.id === userId ? { ...u, status: action === 'ban' ? 'banned' : 'active' } : u))
+            } else {
+                toast.error(data.message, { id: tid })
+            }
+        } catch (error) {
+            toast.error(`Action ${action} failed`, { id: tid })
+        }
+    }
+
+    const handleDeleteUser = async (userId: string, username: string) => {
+        if (!confirm(`CRITICAL PROTOCOL: Are you sure you want to permanently purge ${username} from the system? This action is irreversible.`)) return
+
+        const tid = toast.loading(`Purging ${username} from records...`)
+        try {
+            const res = await authFetch(`/api/admin/user-action?userId=${userId}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (data.success) {
+                toast.success(data.message, { id: tid })
+                setUsers(users.filter(u => u.id !== userId))
+            } else {
+                toast.error(data.message, { id: tid })
+            }
+        } catch (error) {
+            toast.error("Purge protocol failed", { id: tid })
+        }
+    }
+
     const filteredUsers = users.filter(u =>
         u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -241,6 +282,22 @@ const PrincipalDashboard = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                    {/* Security Awareness Card for Principal */}
+                    <div className={cn(
+                        "h-14 px-6 rounded-2xl flex items-center gap-4 border transition-all duration-500 cursor-pointer group",
+                        profile?.twoFactorEnabled
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-500"
+                            : "bg-amber-500/10 border-amber-500/30 text-amber-500 animate-pulse hover:bg-amber-500/20"
+                    )} onClick={() => router.push('/profile')}>
+                        <ShieldCheck size={20} className={profile?.twoFactorEnabled ? "text-emerald-500" : "text-amber-500"} />
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest leading-none">Admin Security</span>
+                            <span className="text-[9px] font-bold uppercase tracking-tighter mt-1 opacity-70 italic">
+                                {profile?.twoFactorEnabled ? "Dual-Layer Active" : "Action Required: Enable 2FA"}
+                            </span>
+                        </div>
+                    </div>
+
                     <div className="relative group w-full sm:w-72">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                         <Input
@@ -374,7 +431,12 @@ const PrincipalDashboard = () => {
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="grid gap-0.5">
-                                                    <p className="text-sm font-bold tracking-tight leading-none">{user.username}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm font-bold tracking-tight leading-none">{user.username}</p>
+                                                        {user.status === 'banned' && (
+                                                            <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 text-[8px] font-black uppercase py-0 px-1 italic">Banned</Badge>
+                                                        )}
+                                                    </div>
                                                     <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">{user.ranks}</p>
                                                 </div>
                                             </div>
@@ -404,6 +466,19 @@ const PrincipalDashboard = () => {
                                                             Grant Admin Authority
                                                         </DropdownMenuItem>
                                                     )}
+                                                    <DropdownMenuSeparator className="bg-white/5 mx-2" />
+                                                    {user.status === 'banned' ? (
+                                                        <DropdownMenuItem onClick={() => handleUserAction(user.id, 'unban', user.username)} className="rounded-xl focus:bg-emerald-500 focus:text-black font-bold px-3 py-2 text-xs">
+                                                            Unban Identity
+                                                        </DropdownMenuItem>
+                                                    ) : (
+                                                        <DropdownMenuItem onClick={() => handleUserAction(user.id, 'ban', user.username)} className="rounded-xl focus:bg-amber-500/10 focus:text-amber-500 font-bold px-3 py-2 text-xs">
+                                                            Ban Identity
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    <DropdownMenuItem onClick={() => handleDeleteUser(user.id, user.username)} className="rounded-xl focus:bg-red-500 focus:text-white font-bold px-3 py-2 text-xs">
+                                                        Purge from System
+                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>

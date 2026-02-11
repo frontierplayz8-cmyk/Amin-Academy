@@ -18,12 +18,8 @@ export default function SystemHealth() {
     useEffect(() => {
         const fetchHealth = async () => {
             try {
-                // Determine latency client-side as well
                 const start = performance.now()
 
-                // We can pass token if we want strict security, 
-                // but for dashboard visuals we'll allow the API to run public 
-                // or just pass it if available.
                 const headers: any = {}
                 if (user) {
                     const token = await user.getIdToken()
@@ -32,8 +28,6 @@ export default function SystemHealth() {
 
                 const res = await fetch('/api/admin/system-health', { headers })
                 const data = await res.json()
-
-                console.log("Health Data:", data)
 
                 const end = performance.now()
                 const networkLatency = Math.round(end - start)

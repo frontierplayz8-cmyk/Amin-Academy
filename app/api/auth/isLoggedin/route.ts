@@ -26,7 +26,12 @@ export const GET = async (req: Request) => {
             await userRef.update({ ranks: 'Principal' })
         }
 
+        if (user && user.status === 'banned') {
+            return NextResponse.json({ message: 'Identity Expelled: Access Denied', success: false }, { status: 403 })
+        }
+
         const rank = user?.ranks || 'Student'
+        const status = user?.status || 'active'
 
         return NextResponse.json(
             {

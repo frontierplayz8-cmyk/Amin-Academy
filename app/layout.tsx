@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import { AuthProvider } from "@/context/AuthContext";
+import { CurriculumInitializer } from "@/components/CurriculumInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${notoNastaliqUrdu.variable} antialiased scroll-smooth`}
       >
         <AuthProvider>
+          <CurriculumInitializer />
           <Toaster theme="dark" position="top-center" />
           <Navbar />
           {children}

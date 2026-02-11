@@ -165,7 +165,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
 
             // Setup silence detector
             silenceDetectorRef.current = new SilenceDetector(3000, () => {
-                console.log('🔕 Silence detected, transcript:', latestTranscriptRef.current)
                 if (latestTranscriptRef.current.trim()) {
                     handleUserSpeechEnd(latestTranscriptRef.current)
                     setCurrentTranscript('')
@@ -192,7 +191,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
 
                 // Reset silence timer on speech
                 if (fullTranscript.trim()) {
-                    console.log('🎤 User speaking:', fullTranscript.substring(0, 30) + '...')
                     silenceDetectorRef.current?.resetTimer()
 
                     if (isAISpeaking) {
@@ -206,13 +204,11 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
 
                 // Don't restart on 'no-speech' - this is normal when user pauses
                 if (event.error === 'no-speech') {
-                    console.log('No speech detected, will auto-restart')
                     return
                 }
 
                 // Don't restart on 'aborted' - this happens when we manually stop
                 if (event.error === 'aborted') {
-                    console.log('Recognition aborted (expected)')
                     return
                 }
 
@@ -228,12 +224,10 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
             }
 
             recognitionRef.current.onend = () => {
-                console.log('Speech recognition ended, isAISpeaking:', isAISpeaking)
                 // Only auto-restart if call is active, not muted, and AI is NOT speaking
                 // The useEffect will handle restarting after AI finishes
                 if (isCallActive && !isMuted && !isAISpeaking) {
                     try {
-                        console.log('Auto-restarting speech recognition...')
                         setTimeout(() => {
                             if (recognitionRef.current && isCallActive && !isMuted && !isAISpeaking) {
                                 try {
@@ -338,27 +332,21 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
         if (!isCallActive || isMuted) return
 
         if (isAISpeaking && recognitionRef.current) {
-            console.log('⏸️ Pausing recognition while AI speaks')
             try {
                 recognitionRef.current.stop()
             } catch (e) {
                 // Ignore errors when stopping - it might already be stopped
-                console.log('Recognition stop error (safe to ignore):', e)
             }
         } else if (!isAISpeaking && recognitionRef.current) {
-            console.log('▶️ Resuming recognition after AI finished')
             // Use a timeout to avoid rapid start/stop cycles
             const timeoutId = setTimeout(() => {
                 if (recognitionRef.current && !isAISpeaking && !isMuted && isCallActive) {
                     try {
                         recognitionRef.current.start()
-                        console.log('✅ Recognition restarted successfully')
                     } catch (e: any) {
                         // Only log if it's not the "already started" error
                         if (!e.message?.includes('already started')) {
                             console.error('Error restarting recognition:', e)
-                        } else {
-                            console.log('Recognition already running (OK)')
                         }
                     }
                 }
@@ -370,7 +358,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
 
     const handleUserSpeechEnd = async (transcript: string) => {
         const sanitized = sanitizeTranscript(transcript)
-        console.log('📝 User said:', sanitized)
 
         if (!sanitized || sanitized.length < 3) {
             console.warn('Transcript too short, ignoring')
@@ -387,7 +374,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
         setIsProcessing(true)
 
         try {
-            console.log('🤖 Requesting AI response...')
             const response = await fetch('/api/ai/voice-call', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -418,8 +404,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
                 aiContent += chunk
             }
 
-            console.log('✅ AI response received:', aiContent.substring(0, 100) + '...')
-
             const aiMessage: Message = {
                 role: 'assistant',
                 content: aiContent,
@@ -438,13 +422,10 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
     }
 
     const speak = async (text: string) => {
-        console.log('🔊 Speaking:', text.substring(0, 50) + '...')
-
         // Try Gemini/Premium voice first if enabled
         if (useGeminiVoice) {
             try {
                 setIsAISpeaking(true)
-                console.log('Attempting Gemini Audio...')
 
                 const response = await fetch('/api/ai/text-to-speech', {
                     method: 'POST',
@@ -469,7 +450,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
                     audioRef.current.volume = volume
 
                     audioRef.current.onended = () => {
-                        console.log('✅ Gemini playback finished')
                         setIsAISpeaking(false)
                         URL.revokeObjectURL(url)
                     }
@@ -492,8 +472,6 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
     }
 
     const speakStandard = (text: string) => {
-        console.log('🔊 Using browser TTS for:', text.substring(0, 50) + '...')
-
         if (!synthRef.current) {
             console.error('Speech synthesis not available')
             return
@@ -528,12 +506,10 @@ export default function AICallModal({ isOpen, onClose }: AICallModalProps) {
                 }
 
                 utterance.onstart = () => {
-                    console.log('✅ Browser TTS started')
                     setIsAISpeaking(true)
                 }
 
                 utterance.onend = () => {
-                    console.log('✅ Browser TTS finished')
                     setIsAISpeaking(false)
                 }
 

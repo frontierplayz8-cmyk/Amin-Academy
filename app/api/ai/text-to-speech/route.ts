@@ -9,21 +9,9 @@ export async function POST(req: Request) {
             process.env.GEMINI_API_KEY_VOICE
         ].filter(Boolean) as string[];
 
-        // Use a semi-random key for TTS to avoid collision with chat/voice
-        const apiKeyToUse = keys[Math.floor(Math.random() * keys.length)];
-        // Use gemini-2.5-flash-preview-tts (confirmed working for standard AUDIO modality)
         const modelName = "gemini-2.5-flash-preview-tts";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKeyToUse}`;
-
-
         const payload = {
-            contents: [
-                {
-                    parts: [
-                        { text: text }
-                    ]
-                }
-            ],
+            contents: [{ parts: [{ text: text }] }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
                 speechConfig: {
@@ -36,15 +24,41 @@ export async function POST(req: Request) {
             }
         };
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        let response: any;
+        let attempts = 0;
+        const maxRetries = keys.length;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json({ message: "Gemini Audio API Error", error: errorText }, { status: response.status });
+        while (attempts < maxRetries) {
+            try {
+                const apiKeyToUse = keys[attempts % keys.length];
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKeyToUse}`;
+
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) break;
+
+                const errorText = await response.text();
+                console.error(`[TTS] Attempt ${attempts + 1} failed:`, errorText);
+
+                if ((response.status === 429 || response.status === 404) && attempts < maxRetries - 1) {
+                    attempts++;
+                    if (response.status === 429) await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+
+                return NextResponse.json({ message: "Gemini Audio API Error", error: errorText }, { status: response.status });
+            } catch (error: any) {
+                console.error(`[TTS] Request error on attempt ${attempts + 1}:`, error.message);
+                if (attempts < maxRetries - 1) {
+                    attempts++;
+                    continue;
+                }
+                throw error;
+            }
         }
 
         const data = await response.json();

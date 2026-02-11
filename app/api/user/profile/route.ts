@@ -41,11 +41,12 @@ export const PATCH = async (req: Request) => {
         const uid = decodedToken.uid
 
         const body = await req.json()
-        const { username, bio } = body
+        const { username, bio, imageUrl } = body
 
         const updates: any = {}
         if (username) updates.username = username
         if (bio !== undefined) updates.bio = bio
+        if (imageUrl) updates.imageUrl = imageUrl
         updates.updatedAt = new Date().toISOString()
 
         await adminDb.collection('users').doc(uid).update(updates)

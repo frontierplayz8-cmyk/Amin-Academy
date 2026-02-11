@@ -40,10 +40,18 @@ export async function POST(req: Request) {
             process.env.GEMINI_API_KEY_VOICE
         ].filter(Boolean) as string[];
 
+        const models = [
+            "gemini-2.0-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b"
+        ];
+
         const getModelForAttempt = (attempt: number) => {
             const key = keys[attempt % keys.length];
+            const modelName = models[attempt % models.length];
             const currentGenAI = new GoogleGenerativeAI(key);
-            const modelName = "gemini-2.5-flash-lite";
+
             return currentGenAI.getGenerativeModel({
                 model: modelName,
                 systemInstruction: systemPrompt
@@ -52,7 +60,7 @@ export async function POST(req: Request) {
 
         let result: any;
         let attempts = 0;
-        const maxRetries = 3;
+        const maxRetries = models.length * keys.length; // More robust retry coverage
 
         while (attempts < maxRetries) {
             try {
@@ -61,10 +69,14 @@ export async function POST(req: Request) {
                 result = await chat.sendMessageStream(lastMessage);
                 break;
             } catch (error: any) {
-                const is429 = error.message?.includes('429') || error.status === 429;
-                if (is429 && attempts < maxRetries - 1) {
+                console.error(`[STUDY_CHAT] Attempt ${attempts + 1} failed:`, error.message);
+                const isThrottled = error.message?.includes('429') || error.status === 429;
+                const isNotFound = error.message?.includes('404') || error.status === 404;
+
+                if ((isThrottled || isNotFound) && attempts < maxRetries - 1) {
                     attempts++;
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    // Short delay for 429, no delay for 404 (just switch model/key)
+                    if (isThrottled) await new Promise(resolve => setTimeout(resolve, 1000));
                     continue;
                 }
                 throw error;

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, ChangeEvent } from 'react'
 import {
     User,
     Mail,
@@ -12,15 +12,18 @@ import {
     CheckCircle2,
     Info,
     Smartphone,
-    QrCode,
     X,
+    Camera,
+    QrCode
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { auth } from '@/lib/firebase'
+import { auth, storage } from '@/lib/firebase'
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from './ui/textarea'
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function AccountSettings() {
     const [loading, setLoading] = useState(true)
@@ -38,11 +41,13 @@ export default function AccountSettings() {
         username: '',
         email: '',
         bio: '',
+        imageUrl: '',
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
         twoFactorCode: ''
     })
+    const [uploading, setUploading] = useState(false)
 
     const fetchProfile = async () => {
         try {
@@ -60,7 +65,8 @@ export default function AccountSettings() {
                     ...prev,
                     username: data.user.username || '',
                     email: data.user.email || '',
-                    bio: data.user.bio || ''
+                    bio: data.user.bio || '',
+                    imageUrl: data.user.imageUrl || ''
                 }))
             }
         } catch (error) {
@@ -77,11 +83,18 @@ export default function AccountSettings() {
     const initiateTwoFactorSetup = async () => {
         try {
             setVerifying(true)
-            const res = await fetch('/api/user/2fa/generate')
+            const token = await auth.currentUser?.getIdToken()
+            const res = await fetch('/api/user/2fa/generate', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
             const data = await res.json()
             if (data.success) {
                 setTwoFactorSetup(data)
                 setShowTwoFactorModal(true)
+            } else {
+                toast.error(data.message || "Failed to generate 2FA key")
             }
         } catch (error) {
             toast.error("Failed to generate 2FA key")
@@ -94,9 +107,13 @@ export default function AccountSettings() {
         if (!verificationCode) return
         setVerifying(true)
         try {
+            const token = await auth.currentUser?.getIdToken()
             const res = await fetch('/api/user/2fa/verify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     secret: twoFactorSetup.secret,
                     code: verificationCode,
@@ -113,7 +130,7 @@ export default function AccountSettings() {
                 toast.error(data.message)
             }
         } catch (error) {
-            toast.error("verification failed")
+            toast.error("Verification failed")
         } finally {
             setVerifying(false)
         }
@@ -126,9 +143,13 @@ export default function AccountSettings() {
         }
         setVerifying(true)
         try {
+            const token = await auth.currentUser?.getIdToken()
             const res = await fetch('/api/user/2fa/verify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     code: formData.twoFactorCode,
                     action: 'disable'
@@ -146,6 +167,47 @@ export default function AccountSettings() {
             toast.error("Failed to disable 2FA")
         } finally {
             setVerifying(false)
+        }
+    }
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (!file.type.startsWith('image/')) {
+            toast.error("Please upload an image file")
+            return
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error("Image too large (max 2MB)")
+            return
+        }
+
+        setUploading(true)
+        const toastId = toast.loading("Uploading identity visual...")
+
+        try {
+            const storageRef = ref(storage, `profiles/${auth.currentUser?.uid}/${Date.now()}_${file.name}`)
+            const uploadTask = uploadBytesResumable(storageRef, file)
+
+            uploadTask.on('state_changed',
+                null,
+                (error) => {
+                    console.error("Upload error:", error)
+                    toast.error("Upload failed", { id: toastId })
+                    setUploading(false)
+                },
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+                    setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
+                    toast.success("Identity visual updated", { id: toastId })
+                    setUploading(false)
+                }
+            )
+        } catch (error) {
+            toast.error("Upload system offline", { id: toastId })
+            setUploading(false)
         }
     }
 
@@ -183,6 +245,7 @@ export default function AccountSettings() {
                     username: formData.username,
                     email: formData.email,
                     bio: formData.bio,
+                    imageUrl: formData.imageUrl,
                     currentPassword: formData.currentPassword,
                     newPassword: formData.newPassword,
                     twoFactorCode: formData.twoFactorCode
@@ -249,7 +312,35 @@ export default function AccountSettings() {
                         </div>
                     </div>
 
-                    <div className="p-8 space-y-6">
+                    <div className="p-8 space-y-8">
+                        {/* Profile Photo Upload */}
+                        <div className="flex flex-col items-center gap-6 pb-6 border-b border-white/5">
+                            <div className="relative group">
+                                <Avatar className="h-32 w-32 border-4 border-emerald-500/20 shadow-2xl group-hover:border-emerald-500/40 transition-all duration-500">
+                                    <AvatarImage src={formData.imageUrl} />
+                                    <AvatarFallback className="bg-zinc-900 text-zinc-500 font-black text-3xl italic">
+                                        {formData.username?.[0]?.toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-full">
+                                    <div className="flex flex-col items-center gap-1">
+                                        <Camera className="text-white" size={24} />
+                                        <span className="text-[8px] font-black uppercase text-white tracking-widest">Update</span>
+                                    </div>
+                                    <input type="file" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                                </label>
+                                {uploading && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full backdrop-blur-[2px]">
+                                        <Loader2 className="animate-spin text-emerald-500" size={32} />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="text-center">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-zinc-300">Avatar Transmission</h4>
+                                <p className="text-[9px] text-zinc-600 font-black uppercase tracking-tighter mt-1 italic">Maximum payload: 2MB (.PNG, .JPG)</p>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Node Identifier (Username)</Label>

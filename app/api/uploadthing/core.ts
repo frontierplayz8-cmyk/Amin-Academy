@@ -1,19 +1,26 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { adminAuth } from "@/lib/firebase-admin";
 
 const f = createUploadthing();
 
-// FileRouter for our app, can contain multiple FileRoutes
 export const ourFileRouter = {
-    // Define as many FileRoutes as you like, each with a unique routeSlug
     pastPaperUploader: f({
         pdf: {
-            maxFileSize: "4MB",
             maxFileCount: 1,
         },
     })
+        .middleware(async ({ req }) => {
+            const authHeader = req.headers.get("authorization");
+            if (!authHeader || !authHeader.startsWith("Bearer ")) throw new Error("Unauthorized");
+            const token = authHeader.split(" ")[1];
+            try {
+                const decoded = await adminAuth.verifyIdToken(token);
+                return { userId: decoded.uid };
+            } catch (e) {
+                throw new Error("Invalid Token");
+            }
+        })
         .onUploadComplete(async ({ metadata, file }) => {
-            // This code RUNS ON YOUR SERVER after upload
-            console.log("Upload complete for url:", file.url);
             return { url: file.url };
         }),
     vaultUploader: f({
@@ -22,12 +29,21 @@ export const ourFileRouter = {
             maxFileCount: 4,
         },
         image: {
-            maxFileSize: "4MB",
             maxFileCount: 4,
         },
     })
+        .middleware(async ({ req }) => {
+            const authHeader = req.headers.get("authorization");
+            if (!authHeader || !authHeader.startsWith("Bearer ")) throw new Error("Unauthorized");
+            const token = authHeader.split(" ")[1];
+            try {
+                const decoded = await adminAuth.verifyIdToken(token);
+                return { userId: decoded.uid };
+            } catch (e) {
+                throw new Error("Invalid Token");
+            }
+        })
         .onUploadComplete(async ({ metadata, file }) => {
-            console.log("Vault upload complete:", file.url);
             return { url: file.url };
         }),
 } satisfies FileRouter;

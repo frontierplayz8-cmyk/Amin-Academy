@@ -126,8 +126,11 @@ const Dashboard = () => {
                     <div className="absolute top-0 right-0 p-12 bg-emerald-500/5 blur-3xl rounded-full" />
                     <CardHeader className="relative z-10 pb-2">
                         <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-2">
-                                Security Status: Optimal
+                            <Badge variant="outline" className={cn(
+                                "border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-2",
+                                profile?.twoFactorEnabled ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse"
+                            )}>
+                                {profile?.twoFactorEnabled ? "Security Protocol: Optimal (2FA Active)" : "Security Alert: 2FA Required"}
                             </Badge>
                         </div>
                         <CardTitle className="text-3xl md:text-4xl font-black uppercase italic leading-none">
@@ -137,14 +140,27 @@ const Dashboard = () => {
                     </CardHeader>
                     <CardContent className="relative z-10 pt-0">
                         <p className="text-zinc-500 text-sm max-w-sm mb-8 leading-relaxed font-medium">
-                            Your academic progress is at 84%. Complete Chapter 05 analysis to reach prime status.
+                            {profile?.twoFactorEnabled
+                                ? "Your identity node is protected by dual-layer encryption. System access remains secure."
+                                : "Your account access is currently in simplified mode. Enable 2FA to unlock full terminal capabilities."}
                         </p>
-                        <Button
-                            onClick={() => router.push('/dashboard/ai-chat')}
-                            className="w-fit bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all group"
-                        >
-                            Resume Learning <ArrowUpRight className="ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" size={14} />
-                        </Button>
+                        <div className="flex gap-3">
+                            <Button
+                                onClick={() => router.push('/dashboard/ai-chat')}
+                                className="w-fit bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all group"
+                            >
+                                Resume Learning <ArrowUpRight className="ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" size={14} />
+                            </Button>
+                            {!profile?.twoFactorEnabled && (
+                                <Button
+                                    onClick={() => router.push('/profile')}
+                                    variant="outline"
+                                    className="w-fit border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:border-amber-500/50 transition-all"
+                                >
+                                    Enable 2FA
+                                </Button>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
