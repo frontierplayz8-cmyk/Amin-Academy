@@ -101,7 +101,7 @@ const TeacherDashboard = () => {
 
   const handleMarkPresent = async () => {
     setMarkingAttendance(true)
-    const toastId = toast.loading("Broadcasting status to Academic Hub...")
+    const toastId = toast.loading("Updating attendance record...")
     try {
       const res = await authFetch('/api/teacher/attendance', { method: 'POST' })
       const data = await res.json()
@@ -131,9 +131,9 @@ const TeacherDashboard = () => {
           />
           <div>
             <h1 className="text-3xl font-black uppercase tracking-tighter italic">
-              Instructor <span className="text-emerald-500 underline decoration-emerald-500/30">Console</span>
+              Teacher <span className="text-emerald-500 underline decoration-emerald-500/30">Dashboard</span>
             </h1>
-            <p className="text-zinc-500 text-sm mt-1 font-medium">Amin Academy Internal System v3.1.2 Production</p>
+            <p className="text-zinc-500 text-sm mt-1 font-medium">Amin Academy Portal</p>
           </div>
         </div>
 
@@ -163,10 +163,10 @@ const TeacherDashboard = () => {
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-emerald-500 mb-4">
               <Sparkles size={20} />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em]">AI Engine Active</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">AI Assistant Ready</span>
             </div>
             <h2 className="text-4xl font-black max-w-md leading-none mb-4">GENERATE QUESTION PAPER FROM SYLLABUS.</h2>
-            <p className="text-zinc-400 text-sm max-w-sm mb-8">Select chapters from Classes 1-11 and let AI Architect draft a professional exam paper in seconds.</p>
+            <p className="text-zinc-400 text-sm max-w-sm mb-8">Select chapters from Classes 1-11 and let our AI generate a professional exam paper in seconds.</p>
 
             <div className="flex items-center gap-6">
               <button
@@ -217,15 +217,15 @@ const TeacherDashboard = () => {
             </div>
 
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Sync Status</h3>
+              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Attendance Status</h3>
               <div className="flex items-center gap-1.5">
                 <div className={`w-1.5 h-1.5 rounded-full ${attendance?.status === 'Present' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-tighter">Live DB Sync</span>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-tighter">Live Database Sync</span>
               </div>
             </div>
 
             <div className="mb-6">
-              <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1 italic">Current Deployment</p>
+              <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1 italic">Current Status</p>
               <h4 className="text-2xl font-black uppercase italic tracking-tighter">
                 {attendance ? (
                   <span className={attendance.status === 'Present' ? 'text-emerald-500' : 'text-amber-500'}>
@@ -245,8 +245,8 @@ const TeacherDashboard = () => {
                 </div>
                 <p className="text-[9px] text-zinc-600 leading-relaxed uppercase tracking-widest font-medium">
                   {attendance.status === 'Pending'
-                    ? "Your presence has been recorded and broadcasted to the Principal's oversight matrix."
-                    : `Synched with campus records on ${attendance.date}.`
+                    ? "Your attendance has been recorded and is awaiting approval from the Principal."
+                    : `Synced with school records on ${attendance.date}.`
                   }
                 </p>
               </div>
@@ -267,15 +267,15 @@ const TeacherDashboard = () => {
             ) : (
               <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
                 <ShieldAlert size={20} className="text-red-500" />
-                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Out of Sector Radius</p>
+                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Out of School Radius</p>
                 <p className="text-[8px] text-red-500/60 font-medium text-center uppercase leading-tight tracking-tighter">
-                  Presence marking disabled. Terminal outside academy perimeter.
+                  Attendance marking disabled. Terminal outside school area.
                 </p>
                 <button
                   onClick={checkLocation}
                   className="mt-2 text-[8px] font-black uppercase text-white/40 hover:text-white transition-colors"
                 >
-                  Re-scan Identity
+                  Re-check Location
                 </button>
               </div>
             )}
@@ -291,8 +291,8 @@ const TeacherDashboard = () => {
 
             <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest leading-relaxed mb-6">
               {profile?.twoFactorEnabled
-                ? "Duo-Layer Neural link confirmed. Account is under high-fidelity protection."
-                : "Your advisor credentials are vulnerable. Activate 2FA to secure your faculty node."}
+                ? "2FA Protection confirmed. Your account is secure."
+                : "Your account is vulnerable. Activate 2FA to secure your teacher profile."}
             </p>
 
             <button
@@ -330,7 +330,7 @@ const TeacherDashboard = () => {
             ) : filteredStudents.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4 text-zinc-600">
                 <Users size={32} className="opacity-20" />
-                <p className="text-[10px] font-black uppercase tracking-widest">No deployed units in Sector {activeGrade}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">No students enrolled in Grade {activeGrade}</p>
               </div>
             ) : (
               <table className="w-full text-left">

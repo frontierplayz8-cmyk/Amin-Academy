@@ -4,6 +4,7 @@ import {
     Bell,
     BookOpen
 } from 'lucide-react'
+import Link from 'next/link'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { StudentSidebar } from "@/components/dashboard/StudentSidebar"
 import { useAuth } from '@/context/AuthContext'
@@ -50,10 +51,10 @@ const StudentLayout = ({ children }: { children: React.ReactNode }) => {
                         </h1>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button className="p-2.5 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white transition-colors relative">
+                        <Link href="/dashboard/notifications" className="p-2.5 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white transition-colors relative">
                             <Bell size={20} />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-[#020202]" />
-                        </button>
+                        </Link>
                     </div>
                 </header>
 

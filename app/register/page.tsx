@@ -19,6 +19,7 @@ export default function RegisterPage() {
         try {
             setLoading(true);
             const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
 
@@ -55,8 +56,8 @@ export default function RegisterPage() {
             router.push('/dashboard');
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Biometric Enrollment Failed');
-            toast.error(err.message || 'Link establishment failed');
+            setError(err.message || 'Registration Failed');
+            toast.error(err.message || 'Connection failed');
         } finally {
             setLoading(false);
         }
@@ -73,7 +74,7 @@ export default function RegisterPage() {
         const password = formData.get('password') as string;
 
         if (!username || !email || !password) {
-            setError("All neural parameters required");
+            setError("All fields are required");
             setLoading(false);
             return;
         }
@@ -103,15 +104,15 @@ export default function RegisterPage() {
                     createdAt: new Date().toISOString()
                 });
 
-                toast.success('Neural Link Established');
+                toast.success('Registration Successful');
                 // Redirect directly to dashboard
                 router.push('/dashboard');
             } catch (firestoreErr: any) {
-                toast.error(`Account created, but database sync failed.`);
-                setError(`Link established, but sync failed. Try logging in.`);
+                toast.error(`Account created, but database error.`);
+                setError(`Account created, but database error. Try logging in.`);
             }
         } catch (err: any) {
-            setError(err.message || "Uplink protocols failed.");
+            setError(err.message || "Registration system error.");
             toast.error(err.message || "Registration failed.");
         } finally {
             setLoading(false);
@@ -128,17 +129,17 @@ export default function RegisterPage() {
                 {/* Header Content */}
                 <div className="text-center mb-8 space-y-2">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[10px] font-black uppercase tracking-widest mb-4">
-                        <Fingerprint size={12} /> NEW OPERATIVE ENROLLMENT
+                        <UserPlus size={12} /> NEW ACCOUNT REGISTRATION
                     </div>
                     <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-                        Join the <span className="text-emerald-500 text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-600">Community</span>
+                        Join the <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-400 to-blue-600">Community</span>
                     </h1>
                     <p className="text-zinc-500 font-medium tracking-tight">Make your child's future brighter</p>
                 </div>
 
                 {/* Auth Card */}
                 <div className="bg-zinc-900/40 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-8 md:p-10 shadow-2xl overflow-hidden relative">
-                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
 
                     {error && (
                         <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold text-center animate-in fade-in slide-in-from-top-2">
@@ -206,7 +207,7 @@ export default function RegisterPage() {
                     <div className="relative my-2">
                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
                         <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                            <span className="bg-[#0b0b0b] px-4 text-zinc-600">Secondary Uplink</span>
+                            <span className="bg-[#020202] px-4 text-zinc-600">Alternative Signup</span>
                         </div>
                     </div>
 
@@ -237,8 +238,8 @@ export default function RegisterPage() {
                     </button>
 
                     <p className="text-center text-xs font-bold text-zinc-600 mt-8 uppercase tracking-[0.2em]">
-                        ALREADY ENROLLED?{' '}
-                        <Link href="/login" className="text-emerald-500 hover:text-emerald-400 transition-colors">Return to Base</Link>
+                        ALREADY HAVE AN ACCOUNT?{' '}
+                        <Link href="/login" className="text-emerald-500 hover:text-emerald-400 transition-colors">Login Here</Link>
                     </p>
                 </div>
             </div>

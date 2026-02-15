@@ -257,7 +257,7 @@ const PrincipalDashboard = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-zinc-950">
-                <div className="text-amber-500 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Overview...</div>
+                <div className="text-amber-500 font-bold uppercase tracking-widest text-xs animate-pulse">Loading Dashboard...</div>
             </div>
         )
     }
@@ -269,14 +269,14 @@ const PrincipalDashboard = () => {
                 <div className="space-y-4 flex flex-col items-center text-center">
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 w-fit">
                         <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Institutional Oversight</span>
+                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Institutional Management</span>
                     </div>
                     <div>
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase italic tracking-tighter leading-none">
-                            Oversight <span className="text-emerald-500 not-italic">COMMAND</span>
+                            Principal <span className="text-emerald-500 not-italic">DASHBOARD</span>
                         </h1>
                         <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-[0.2em] mt-4 flex items-center justify-center gap-2 max-w-xl leading-relaxed">
-                            Amin Academy Framework v2.0 | Welcome, <span className="text-zinc-200">{currentUser?.username}</span>
+                            Amin Academy Portal | Welcome, <span className="text-zinc-200">{currentUser?.username}</span>
                         </p>
                     </div>
                 </div>
@@ -291,9 +291,9 @@ const PrincipalDashboard = () => {
                     )} onClick={() => router.push('/profile')}>
                         <ShieldCheck size={20} className={profile?.twoFactorEnabled ? "text-emerald-500" : "text-amber-500"} />
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-widest leading-none">Admin Security</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest leading-none">Account Security</span>
                             <span className="text-[9px] font-bold uppercase tracking-tighter mt-1 opacity-70 italic">
-                                {profile?.twoFactorEnabled ? "Dual-Layer Active" : "Action Required: Enable 2FA"}
+                                {profile?.twoFactorEnabled ? "2FA Enabled" : "Action Required: Enable 2FA"}
                             </span>
                         </div>
                     </div>
@@ -301,7 +301,7 @@ const PrincipalDashboard = () => {
                     <div className="relative group w-full sm:w-72">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                         <Input
-                            placeholder="Scan identities..."
+                            placeholder="Search users..."
                             className="pl-10 h-14 bg-zinc-950/50 border-white/5 focus:border-emerald-500/50 focus-visible:ring-emerald-500/20 rounded-2xl placeholder:text-zinc-700 font-medium text-xs transition-all"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -321,13 +321,13 @@ const PrincipalDashboard = () => {
                 {[
                     { title: "Active Students", value: students.length, icon: GraduationCap, color: "text-emerald-500", label: "Registered Learners", trend: "Live" },
                     { title: "Evaluated Papers", value: paperCount, icon: School, color: "text-blue-500", label: "Exam Cycles", trend: "+12%" },
-                    { title: "Faculty Size", value: users.filter(u => u.ranks === 'Teacher').length, icon: ShieldCheck, color: "text-emerald-500", label: "Neural Instructors", trend: "Stable" },
-                    { title: "Pending Dues", value: students.filter(s => s.feeStatus === 'Pending').length, icon: CreditCard, color: "text-red-500", label: "Financial Syncs", trend: "Review" },
+                    { title: "Faculty Size", value: users.filter(u => u.ranks === 'Teacher').length, icon: ShieldCheck, color: "text-emerald-500", label: "Academic Instructors", trend: "Stable" },
+                    { title: "Pending Dues", value: students.filter(s => s.feeStatus === 'Pending').length, icon: CreditCard, color: "text-red-500", label: "Payment Tracking", trend: "Review" },
                 ].map((stat, i) => (
-                    <Card key={i} className="bg-[#080808]/50 border-white/5 backdrop-blur-md rounded-[2rem] hover:border-emerald-500/20 transition-all duration-500 group overflow-hidden">
+                    <Card key={i} className="bg-[#080808]/50 border-white/5 backdrop-blur-md rounded-4xl hover:border-emerald-500/20 transition-all duration-500 group overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 duration-500 shadow-2xl bg-white/[0.03] ${stat.color}`}>
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 duration-500 shadow-2xl bg-white/3 ${stat.color}`}>
                                     <stat.icon size={22} />
                                 </div>
                                 <div className="px-2 py-1 rounded-lg bg-white/5 text-[8px] font-black text-zinc-500 uppercase tracking-tighter">
@@ -347,63 +347,65 @@ const PrincipalDashboard = () => {
             </div>
 
             {/* ACTIVE OVERSIGHT: Faculty Attendance */}
-            {pendingAttendance.length > 0 && (
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                            <ClipboardCheck className="text-emerald-500" size={16} />
+            {
+                pendingAttendance.length > 0 && (
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3 px-2">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                <ClipboardCheck className="text-emerald-500" size={16} />
+                            </div>
+                            <h2 className="text-xl font-black uppercase italic tracking-tight text-zinc-100">Teacher Attendance</h2>
+                            <Badge variant="outline" className="border-red-500/20 text-red-500 text-[9px] font-black uppercase tracking-widest">{pendingAttendance.length} Awaiting Verification</Badge>
                         </div>
-                        <h2 className="text-xl font-black uppercase italic tracking-tight text-zinc-100">Faculty Pulse Check</h2>
-                        <Badge variant="outline" className="border-red-500/20 text-red-500 text-[9px] font-black uppercase tracking-widest">{pendingAttendance.length} Awaiting Sync</Badge>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {pendingAttendance.map((record) => (
-                            <Card key={record.id} className="bg-zinc-900/10 border-white/5 backdrop-blur-sm overflow-hidden rounded-[2.5rem]">
-                                <CardHeader className="p-6 pb-3">
-                                    <div className="flex justify-between items-start">
-                                        <div className="space-y-1">
-                                            <p className="font-mono text-[10px] text-emerald-500/80 uppercase font-black tracking-widest">{record.date}</p>
-                                            <CardTitle className="text-xl font-black uppercase italic text-zinc-100">{record.teacherName}</CardTitle>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {pendingAttendance.map((record) => (
+                                <Card key={record.id} className="bg-zinc-900/10 border-white/5 backdrop-blur-sm overflow-hidden rounded-[2.5rem]">
+                                    <CardHeader className="p-6 pb-3">
+                                        <div className="flex justify-between items-start">
+                                            <div className="space-y-1">
+                                                <p className="font-mono text-[10px] text-emerald-500/80 uppercase font-black tracking-widest">{record.date}</p>
+                                                <CardTitle className="text-xl font-black uppercase italic text-zinc-100">{record.teacherName}</CardTitle>
+                                            </div>
+                                            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-zinc-400">
+                                                <Clock size={18} />
+                                            </div>
                                         </div>
-                                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-zinc-400">
-                                            <Clock size={18} />
+                                    </CardHeader>
+                                    <CardContent className="p-6 pt-0 space-y-6">
+                                        <div className="flex items-center gap-2 p-3 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Self-Report:</span>
+                                            <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-none text-[9px] font-black tracking-widest h-auto py-0.5">PRESENT</Badge>
                                         </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-6 pt-0 space-y-6">
-                                    <div className="flex items-center gap-2 p-3 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Self-Report:</span>
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-none text-[9px] font-black tracking-widest h-auto py-0.5">PRESENT</Badge>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <Button
-                                            onClick={() => handleVerifyAttendance(record.id, 'Present')}
-                                            className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-widest text-xs rounded-xl"
-                                        >
-                                            <Check className="mr-2 h-4 w-4" /> Sync Signal
-                                        </Button>
-                                        <Button
-                                            onClick={() => handleVerifyAttendance(record.id, 'Absent')}
-                                            variant="ghost"
-                                            className="h-12 w-12 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500"
-                                        >
-                                            <X size={20} />
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                        <div className="flex gap-3">
+                                            <Button
+                                                onClick={() => handleVerifyAttendance(record.id, 'Present')}
+                                                className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-widest text-xs rounded-xl"
+                                            >
+                                                <Check className="mr-2 h-4 w-4" /> Verify Attendance
+                                            </Button>
+                                            <Button
+                                                onClick={() => handleVerifyAttendance(record.id, 'Absent')}
+                                                variant="ghost"
+                                                className="h-12 w-12 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500"
+                                            >
+                                                <X size={20} />
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {/* Neural Analytics View */}
+            {/* School Analytics */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-2 bg-[#080808]/50 border-white/5 rounded-[2.5rem] overflow-hidden">
                     <CardHeader className="p-8 pb-4 flex flex-row items-center justify-between">
                         <div>
-                            <CardTitle className="text-xl font-black uppercase italic tracking-tight">Efficacy Metrics</CardTitle>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Platform-wide neural activity</p>
+                            <CardTitle className="text-xl font-black uppercase italic tracking-tight">Performance Analytics</CardTitle>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Student performance data</p>
                         </div>
                         <Activity className="text-emerald-500/50" size={24} />
                     </CardHeader>
@@ -412,11 +414,11 @@ const PrincipalDashboard = () => {
                     </CardContent>
                 </Card>
 
-                {/* Identity Ledger Summary (Compact) */}
+                {/* User Registry Summary (Compact) */}
                 <Card className="bg-[#080808]/50 border-white/5 rounded-[2.5rem] overflow-hidden flex flex-col">
                     <CardHeader className="p-8 pb-4">
-                        <CardTitle className="text-xl font-black uppercase italic tracking-tight">Identity Register</CardTitle>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Active system occupants</p>
+                        <CardTitle className="text-xl font-black uppercase italic tracking-tight">User Registry</CardTitle>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Current school members</p>
                     </CardHeader>
                     <CardContent className="p-0 flex-1 overflow-hidden">
                         <Table className="border-collapse">
@@ -449,7 +451,7 @@ const PrincipalDashboard = () => {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="bg-zinc-950 border-white/5 rounded-2xl p-2 min-w-[200px]">
-                                                    <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-zinc-500 px-3 py-2">Identity Protocol</DropdownMenuLabel>
+                                                    <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-zinc-500 px-3 py-2">User Management</DropdownMenuLabel>
                                                     <DropdownMenuSeparator className="bg-white/5 mx-2" />
                                                     {user.ranks !== 'Student' && (
                                                         <DropdownMenuItem onClick={() => handlePromote(user.id, 'Student')} className="rounded-xl focus:bg-red-500/10 focus:text-red-500 font-bold px-3 py-2 text-xs">
@@ -511,7 +513,7 @@ const PrincipalDashboard = () => {
                 onClose={() => setIsLectureModalOpen(false)}
                 userName={currentUser?.username || "Principal"}
             />
-        </div>
+        </div >
     )
 }
 

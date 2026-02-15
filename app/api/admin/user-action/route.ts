@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import admin, { adminAuth, adminDb } from "@/lib/firebase-admin"
 
 export const PATCH = async (req: Request) => {
     try {
@@ -37,7 +37,7 @@ export const PATCH = async (req: Request) => {
             await userRef.update({ status: 'banned', bannedAt: new Date().toISOString() })
             return NextResponse.json({ success: true, message: 'User banned successfully' })
         } else if (action === 'unban') {
-            await userRef.update({ status: 'active', bannedAt: adminDb.FieldValue.delete() })
+            await userRef.update({ status: 'active', bannedAt: admin.firestore.FieldValue.delete() })
             return NextResponse.json({ success: true, message: 'User unbanned successfully' })
         } else {
             return NextResponse.json({ message: 'Invalid action' }, { status: 400 })

@@ -232,35 +232,31 @@ function PaperViewer() {
 
             toast.loading("Capturing High-Quality Render...", { id: toastId })
 
-            const canvas = await html2canvas(paperRef.current, {
+            const el = paperRef.current;
+            el.classList.add('pdf-capture-safe');
+
+            const canvas = await html2canvas(el, {
                 scale: 3,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                windowWidth: paperRef.current.scrollWidth,
-                windowHeight: paperRef.current.scrollHeight,
+                windowWidth: el.scrollWidth,
+                windowHeight: el.scrollHeight,
+                height: el.scrollHeight,
                 onclone: (clonedDoc) => {
                     const allElements = clonedDoc.querySelectorAll('*')
                     allElements.forEach((el: any) => {
                         try {
                             const style = window.getComputedStyle(el)
+                            const hasBadColor = (val: string | null) => val && (val.includes('oklch') || val.includes('lab') || val.includes('color-mix'))
 
-                            const sanitize = (val: string | null) => {
-                                if (!val) return null
-                                if (val.includes('oklch') || val.includes('lab') || val.includes('color-mix')) {
-                                    return '#000000'
-                                }
-                                return null
-                            }
-
-                            const colorSanitized = sanitize(style.color)
-                            if (colorSanitized) el.style.setProperty('color', colorSanitized, 'important')
-
-                            const bgSanitized = sanitize(style.backgroundColor)
-                            if (bgSanitized) el.style.setProperty('background-color', '#ffffff', 'important')
-
-                            const borderSanitized = sanitize(style.borderColor)
-                            if (borderSanitized) el.style.setProperty('border-color', '#000000', 'important')
+                            if (hasBadColor(style.color)) el.style.setProperty('color', '#000000', 'important')
+                            if (hasBadColor(style.backgroundColor)) el.style.setProperty('background-color', '#ffffff', 'important')
+                            if (hasBadColor(style.borderColor)) el.style.setProperty('border-color', '#000000', 'important')
+                            if (hasBadColor(style.fill)) el.style.setProperty('fill', '#000000', 'important')
+                            if (hasBadColor(style.stroke)) el.style.setProperty('stroke', '#000000', 'important')
+                            if (hasBadColor(style.boxShadow)) el.style.setProperty('box-shadow', 'none', 'important')
+                            if (hasBadColor(style.textShadow)) el.style.setProperty('text-shadow', 'none', 'important')
 
                             if (el.classList.contains('text-emerald-500') || el.classList.contains('text-emerald-600')) {
                                 el.style.setProperty('color', '#059669', 'important')
@@ -355,8 +351,10 @@ function PaperViewer() {
             }
 
             pdf.save(`${title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`)
+            el.classList.remove('pdf-capture-safe');
             toast.success("Exam Paper Exported Successfully", { id: toastId })
         } catch (error: any) {
+            paperRef.current?.classList.remove('pdf-capture-safe');
             console.error("FULL PDF EXPORT ERROR TRACE:", error)
             const errorMessage = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
             setDebugError(errorMessage)

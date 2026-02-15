@@ -9,7 +9,8 @@ import {
     LogOut,
     ChevronRight,
     ChevronsUpDown,
-    BookOpen
+    BookOpen,
+    Bell
 } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/context/AuthContext"
@@ -57,6 +58,7 @@ export function StudentSidebar({ ...props }: React.ComponentProps<typeof Sidebar
             label: "Systems",
             items: [
                 { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
+                { icon: Bell, label: "Notifications", href: "/dashboard/notifications" },
                 { icon: Sparkles, label: "AI Study Room", href: "/dashboard/ai-chat", activeClass: "text-emerald-500" },
                 { icon: FileText, label: "Past Papers", href: "/dashboard/past-papers" },
             ]
@@ -142,7 +144,7 @@ export function StudentSidebar({ ...props }: React.ComponentProps<typeof Sidebar
                                 </SidebarMenuButton>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
-                                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-[1.5rem] bg-zinc-950 border-white/5 text-zinc-200 p-2 shadow-2xl backdrop-blur-xl"
+                                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-3xl bg-zinc-950 border-white/5 text-zinc-200 p-2 shadow-2xl backdrop-blur-xl"
                                 side="top"
                                 align="end"
                                 sideOffset={8}

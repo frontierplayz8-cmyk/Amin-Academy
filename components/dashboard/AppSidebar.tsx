@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 { icon: Users, label: "Student Roster", href: "/PrincipalDashboard/students" },
                 { icon: FileSpreadsheet, label: "Academic Records", href: "/PrincipalDashboard/records" },
                 { icon: FileText, label: "Past Papers", href: "/PrincipalDashboard/past-papers" },
-                { icon: Sparkles, label: "Image Editor", href: "/PrincipalDashboard/ai-logs/view-paper/architect" },
+                { icon: Sparkles, label: "Image Editor", href: "/architect-studio" },
             ]
         },
         {
@@ -56,6 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 { icon: FileSpreadsheet, label: "Curriculum Map", href: "/PrincipalDashboard/curriculum" },
                 { icon: CreditCard, label: "Fee Management", href: "/PrincipalDashboard/finance" },
                 { icon: Users, label: "Personnel Hub", href: "/PrincipalDashboard/settings" },
+                { icon: FileText, label: "Review Applications", href: "/PrincipalDashboard/applications" },
                 { icon: ShieldCheck, label: "Account Settings", href: "/PrincipalDashboard/profile" },
             ]
         },

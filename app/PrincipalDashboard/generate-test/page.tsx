@@ -1,20 +1,16 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
     Settings2,
     Zap,
-    Loader2,
-    CheckCircle2,
-    FileText,
     Eye,
     Trash2,
-    Download,
     RefreshCw,
     History,
-    ArrowRight
+    FileText,
 } from 'lucide-react'
 import {
     Card,
@@ -42,6 +38,7 @@ import { cn } from "@/lib/utils"
 import { GRADES, STREAMS, getSubjectsForGradeAndStream, getChaptersForSubject, setDynamicCurriculum, getSubjectsForGrade } from '@/app/lib/curriculum-data'
 import { buildInternetSystemPrompt } from '@/app/lib/ai-prompt-builder'
 import { useAuthenticatedFetch } from "@/lib/useAuthenticatedFetch"
+import { safeJSONParse } from "@/app/lib/safe-json"
 import { generateTestInternet } from '@/app/actions/gemini'
 import { useAuth } from '@/context/AuthContext'
 
@@ -161,7 +158,9 @@ export default function GenerateTestPage() {
                 throw new Error("Invalid AI Response Format: No JSON found")
             }
 
-            const paperData = JSON.parse(jsonMatch[0])
+            const paperData = safeJSONParse(jsonMatch[0], null)
+
+            if (!paperData) throw new Error("JSON Parse Failed");
 
             const genConfig = {
                 grade: config.grade,
@@ -647,20 +646,5 @@ export default function GenerateTestPage() {
     )
 }
 
-function ProtocolStep({ number, title, desc }: { number: string, title: string, desc: string }) {
-    return (
-        <div className="flex gap-6 group/step">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-950 text-emerald-500 flex items-center justify-center font-black text-sm shrink-0 border border-white/5 shadow-2xl group-hover/step:border-emerald-500/20 group-hover/step:scale-110 transition-all duration-500">
-                {number}
-            </div>
-            <div>
-                <h4 className="text-white text-sm font-black uppercase italic tracking-tighter mb-2 group-hover/step:text-emerald-500 transition-colors">{title}</h4>
-                <p className="text-zinc-600 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
-                    {desc}
-                </p>
-            </div>
-        </div>
-    )
-}
 
 

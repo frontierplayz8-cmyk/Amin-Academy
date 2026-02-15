@@ -52,7 +52,7 @@ export default function AboutPage() {
                     </div>
                     <h1 id="hero-heading" className="text-6xl sm:text-7xl md:text-9xl font-black italic uppercase tracking-tighter leading-[0.85] mb-8">
                         OUR <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-br from-white via-emerald-400 to-zinc-700">
+                        <span className="text-transparent bg-clip-text bg-linear-to-br from-white via-emerald-400 to-zinc-700">
                             LEGACY
                         </span>
                     </h1>
@@ -86,7 +86,7 @@ export default function AboutPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
                         {principals.map((p, idx) => (
                             <article key={idx} className="group flex flex-col">
-                                <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden bg-zinc-900 border border-white/5 mb-8 shadow-2xl group-hover:border-emerald-500/30 transition-all duration-500">
+                                <div className="relative aspect-4/5 rounded-[2.5rem] overflow-hidden bg-zinc-900 border border-white/5 mb-8 shadow-2xl group-hover:border-emerald-500/30 transition-all duration-500">
                                     <Image
                                         src={p.image}
                                         alt={`Portrait of ${p.name}, ${p.role}`}
@@ -95,7 +95,7 @@ export default function AboutPage() {
                                         className="object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-105 group-hover:scale-100"
                                         priority={idx === 0}
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                                    <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-transparent opacity-80" />
                                     <div className="absolute bottom-10 left-10 right-10">
                                         <div className="inline-block px-3 py-1 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest rounded-lg mb-3">
                                             {p.specialty}
@@ -130,7 +130,7 @@ export default function AboutPage() {
                                         { icon: <Award className="text-emerald-500" size={24} />, title: "Proven Velocity", desc: "Consistently delivering top-tier board results for over 20 years." }
                                     ].map((item, i) => (
                                         <div key={i} className="flex gap-8 group">
-                                            <div className="w-16 h-16 rounded-[1.5rem] bg-zinc-950 border border-white/5 flex items-center justify-center shrink-0 group-hover:border-emerald-500/30 transition-all shadow-xl">
+                                            <div className="w-16 h-16 rounded-3xl bg-zinc-950 border border-white/5 flex items-center justify-center shrink-0 group-hover:border-emerald-500/30 transition-all shadow-xl">
                                                 {item.icon}
                                             </div>
                                             <div className="space-y-2">
@@ -145,12 +145,12 @@ export default function AboutPage() {
                             <div className="order-1 lg:order-2 relative">
                                 <div className="relative aspect-square rounded-[4rem] overflow-hidden border border-white/10 shadow-2xl group">
                                     <Image
-                                        src="/principals-group.png"
+                                        src="/principals-group.webp"
                                         alt="Leadership team collaborating on curriculum"
                                         fill
                                         className="object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/20 via-transparent to-blue-500/10 mix-blend-overlay" />
+                                    <div className="absolute inset-0 bg-linear-to-tr from-emerald-500/20 via-transparent to-blue-500/10 mix-blend-overlay" />
                                 </div>
                                 {/* Stats Floating Card */}
                                 <div className="absolute -bottom-8 -left-8 md:-bottom-12 md:-left-12 p-8 md:p-10 bg-zinc-950/90 backdrop-blur-xl rounded-[2.5rem] border border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.5)] animate-in zoom-in duration-700">

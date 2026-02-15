@@ -13,23 +13,23 @@ export default function PrivacyPage() {
         },
         {
             icon: <Shield className="text-blue-500" size={24} />,
-            title: "Encryption Protocols",
+            title: "Data Protection",
             content: "All sensitive data, including authentication tokens and grade records, are encrypted both at rest and in transit via Secure Socket Layer (SSL) technology and Firebase security rules."
         },
         {
             icon: <Eye className="text-amber-500" size={24} />,
             title: "Transparency",
-            content: "We believe in radical data transparency. Students and guardians have the right to request a full dump of their academic and personal data stored on our neural infrastructure at any time."
+            content: "We believe in radical data transparency. Students and guardians have the right to request a full dump of their academic and personal data stored on our infrastructure at any time."
         },
         {
             icon: <Server className="text-purple-500" size={24} />,
             title: "Third-Party Sync",
-            content: "We do not sell, trade, or rent user identity data to external marketing sectors. Data is only shared with authorized educational boards or service providers (like Firebase) strictly for functional operations."
+            content: "We do not sell, trade, or rent user identity data to external organizations. Data is only shared with authorized educational boards or service providers (like Firebase) strictly for functional operations."
         },
         {
             icon: <Lock className="text-red-500" size={24} />,
             title: "Access Control",
-            content: "Multi-layered role-based access control (RBAC) ensures that only authorized faculty (Teachers/Principals) can access specific datasets relevant to their administrative sector."
+            content: "Multi-layered role-based access control (RBAC) ensures that only authorized faculty (Teachers/Principals) can access specific datasets relevant to their management area."
         }
     ]
 
@@ -41,13 +41,13 @@ export default function PrivacyPage() {
                 <div className="space-y-12">
                     <header className="space-y-6 text-center animate-in fade-in slide-in-from-top-8 duration-700">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-widest mx-auto">
-                            <Lock size={12} /> Privacy Protocol v2026
+                            <Lock size={12} /> Privacy Policy v2026
                         </div>
                         <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter">
-                            Data <br /> <span className="text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-600">Sovereignty</span>
+                            Data <br /> <span className="text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-600">Privacy</span>
                         </h1>
                         <p className="text-zinc-500 text-lg font-medium max-w-xl mx-auto">
-                            Our privacy framework is built on the principles of security, transparency, and student protection.
+                            Our privacy policy is built on the principles of security, transparency, and student protection.
                         </p>
                     </header>
 
@@ -78,9 +78,9 @@ export default function PrivacyPage() {
                             <Bell size={16} className="text-amber-500" /> Policy Updates
                         </h4>
                         <p className="text-zinc-500 text-sm font-medium">
-                            Amin Academy reserves the right to refine these protocols to adapt to new regulatory frameworks. Critical changes will be transmitted via direct dashboard notifications.
+                            Amin Academy reserves the right to update these policies to adapt to new laws and regulations. Critical changes will be notified via direct dashboard notifications.
                         </p>
-                        <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest pt-4">Last Sync: February 2026</p>
+                        <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest pt-4">Last Updated: February 2026</p>
                     </div>
                 </div>
             </main>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import admin, { adminAuth, adminDb } from "@/lib/firebase-admin"
 const { verifySync } = require('otplib');
 
 export const POST = async (req: NextRequest) => {
@@ -43,7 +43,7 @@ export const POST = async (req: NextRequest) => {
             } else if (action === 'disable') {
                 await adminDb.collection('users').doc(uid).update({
                     twoFactorEnabled: false,
-                    twoFactorSecret: adminDb.FieldValue.delete()
+                    twoFactorSecret: admin.firestore.FieldValue.delete()
                 })
             }
 

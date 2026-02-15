@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import admin, { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
     try {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
         // Disable 2FA
         await adminDb.collection('users').doc(uid).update({
             twoFactorEnabled: false,
-            twoFactorSecret: adminDb.FieldValue.delete()
+            twoFactorSecret: admin.firestore.FieldValue.delete()
         });
 
         return NextResponse.json({ success: true, message: '2FA disabled successfully' });

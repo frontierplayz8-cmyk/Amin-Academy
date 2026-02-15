@@ -25,7 +25,7 @@ export default function NotFound() {
                     </div>
 
                     <h1 className="text-8xl md:text-9xl font-black italic tracking-tighter text-white mb-4">
-                        LOST IN <span className="text-emerald-500">SPACE</span>
+                        Are You <span className="text-emerald-500">Lost?</span>
                     </h1>
 
                     <p className="text-zinc-500 text-lg md:text-xl font-medium max-w-md mx-auto mb-12">

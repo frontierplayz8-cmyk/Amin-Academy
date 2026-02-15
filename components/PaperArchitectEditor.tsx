@@ -31,10 +31,14 @@ import {
     Search,
     Check,
     Languages,
-    Printer
+    Printer,
+    Wand2,
+    Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EditableText } from './EditableText'
+import TranslateDropdown from './TranslateDropdown'
+import { AISectionPromptModal } from './AISectionPromptModal'
 
 // --- HELPER ---
 const safeRender = (val: any): string => {
@@ -45,6 +49,34 @@ const safeRender = (val: any): string => {
     }
     return ''
 }
+
+// Helper wrapper for translation
+const EditableWithTools = ({ value, onSave, isEditing, className, dir, ...props }: any) => {
+    const textValue = safeRender(value)
+    return (
+        <div className={cn("relative inline-block w-full group/editable", className)} dir={dir}>
+            {isEditing && (
+                <div className="absolute -top-10 right-0 z-50 opacity-0 group-hover/editable:opacity-100 transition-opacity">
+                    <TranslateDropdown
+                        text={textValue}
+                        onTranslate={(translated: string, lang: string) => {
+                            onSave(translated)
+                        }}
+                    />
+                </div>
+            )}
+            <EditableText
+                value={textValue}
+                onSave={onSave}
+                isEditing={isEditing}
+                className={cn("w-full", className)}
+                dir={dir}
+                {...props}
+            />
+        </div>
+    )
+}
+
 
 // --- TYPES ---
 
@@ -81,13 +113,15 @@ function SortableSection({
     children,
     onDelete,
     isSelected,
-    onSelect
+    onSelect,
+    onAIAction
 }: {
     id: string,
     children: React.ReactNode,
     onDelete: () => void,
     isSelected: boolean,
-    onSelect: () => void
+    onSelect: () => void,
+    onAIAction?: () => void
 }) {
     const {
         attributes,
@@ -133,9 +167,19 @@ function SortableSection({
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
                     className="p-2 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                    title="Delete Section"
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>
+                {onAIAction && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onAIAction(); }}
+                        className="p-2 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                        title="AI Magic (Add/Replace)"
+                    >
+                        <Wand2 className="w-4 h-4" />
+                    </button>
+                )}
             </div>
 
             {children}
@@ -150,6 +194,8 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [activeCommand, setActiveCommand] = useState<string | null>(null)
     const [commandQuery, setCommandQuery] = useState('')
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+    const [activeSectionAI, setActiveSectionAI] = useState<Section | null>(null)
 
     // Transform paperData into manageable sections
     useEffect(() => {
@@ -303,6 +349,47 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
             isUrdu: paperData.paperInfo.subject === 'Urdu'
         }
         setSections(prev => [...prev, newSection])
+    }
+
+    const handleAIAction = (section: Section) => {
+        setActiveSectionAI(section)
+        setIsAIModalOpen(true)
+    }
+
+    const handleAIGenerated = (data: any, action: 'ADD_CONTENT' | 'REPLACE_CONTENT' | 'IMPROVE_CONTENT') => {
+        if (!activeSectionAI) return
+
+        setSections(prevSections => {
+            const newSections = [...prevSections]
+            const sectionIdx = newSections.findIndex(s => s.id === activeSectionAI.id)
+            if (sectionIdx === -1) return prevSections
+
+            const section = { ...newSections[sectionIdx] } // Create a mutable copy
+            let updatedContent = section.content
+
+            // Handle specific logic for different section types
+            if (section.type === 'mcq_group') {
+                const newQuestions = data.questions || []
+                if (action === 'ADD_CONTENT') {
+                    updatedContent = [...(Array.isArray(section.content) ? section.content : []), ...newQuestions]
+                } else { // REPLACE_CONTENT or IMPROVE_CONTENT
+                    updatedContent = newQuestions
+                }
+            } else if (Array.isArray(section.content)) {
+                const newItems = data.items || []
+                updatedContent = action === 'ADD_CONTENT' ? [...section.content, ...newItems] : newItems
+            } else {
+                // General replacement for objects or single string content
+                updatedContent = data
+            }
+
+            newSections[sectionIdx] = { ...section, content: updatedContent }
+            return newSections
+        })
+
+        // Close modal and reset active section
+        setIsAIModalOpen(false)
+        setActiveSectionAI(null)
     }
 
     // --- SLASH COMMANDS ---
@@ -537,10 +624,48 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                                 {section.content.map((item: any, idx: number) => (
                                     <div key={idx} className="page-break-inside-avoid">
                                         {typeof item === 'string' ? (
-                                            <EditableText value={safeRender(item)} onSave={() => { }} isEditing={isEditing} dir={section.isUrdu ? "rtl" : "ltr"} className={cn("text-[14px]", section.isUrdu && "font-urdu")} />
+                                            <EditableWithTools
+                                                value={safeRender(item)}
+                                                onSave={(val: string) => {
+                                                    // This onSave needs to update the specific item in the section's content array
+                                                    setSections(prevSections => {
+                                                        const newSections = [...prevSections];
+                                                        const currentSection = newSections.find(s => s.id === section.id);
+                                                        if (currentSection && Array.isArray(currentSection.content)) {
+                                                            const newContent = [...currentSection.content];
+                                                            newContent[idx] = val;
+                                                            currentSection.content = newContent;
+                                                        }
+                                                        return newSections;
+                                                    });
+                                                }}
+                                                isEditing={isEditing}
+                                                dir={section.isUrdu ? "rtl" : "ltr"}
+                                                className={cn("text-[14px]", section.isUrdu && "font-urdu")}
+                                            />
                                         ) : item.couplet ? (
                                             <div className="text-center font-bold">
-                                                <EditableText value={safeRender(item.couplet)} onSave={() => { }} isEditing={isEditing} dir={section.isUrdu ? "rtl" : "ltr"} className={cn("text-[16px]", section.isUrdu && "font-urdu")} />
+                                                <EditableWithTools
+                                                    value={safeRender(item.couplet)}
+                                                    onSave={(val: string) => {
+                                                        // This onSave needs to update the specific item's couplet in the section's content array
+                                                        setSections(prevSections => {
+                                                            const newSections = [...prevSections];
+                                                            const currentSection = newSections.find(s => s.id === section.id);
+                                                            if (currentSection && Array.isArray(currentSection.content)) {
+                                                                const newContent = [...currentSection.content];
+                                                                if (newContent[idx] && typeof newContent[idx] === 'object') {
+                                                                    newContent[idx] = { ...newContent[idx], couplet: val };
+                                                                }
+                                                                currentSection.content = newContent;
+                                                            }
+                                                            return newSections;
+                                                        });
+                                                    }}
+                                                    isEditing={isEditing}
+                                                    dir={section.isUrdu ? "rtl" : "ltr"}
+                                                    className={cn("text-[16px]", section.isUrdu && "font-urdu")}
+                                                />
                                             </div>
                                         ) : null}
                                     </div>
@@ -548,9 +673,29 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                             </div>
                         ) : (
                             <div className="px-4 text-justify">
-                                <EditableText
+                                <EditableWithTools
                                     value={safeRender(section.content.paragraph || section.content.prompt || section.content.lessonTitle || section.content.poemTitle || section.content)}
-                                    onSave={() => { }}
+                                    onSave={(val: string) => {
+                                        // This onSave needs to update the section's content directly
+                                        setSections(prevSections => {
+                                            const newSections = [...prevSections];
+                                            const currentSection = newSections.find(s => s.id === section.id);
+                                            if (currentSection) {
+                                                // Assuming content is a string or an object where the main text is one of these keys
+                                                if (typeof currentSection.content === 'string') {
+                                                    currentSection.content = val;
+                                                } else if (typeof currentSection.content === 'object') {
+                                                    if (currentSection.content.paragraph !== undefined) currentSection.content.paragraph = val;
+                                                    else if (currentSection.content.prompt !== undefined) currentSection.content.prompt = val;
+                                                    else if (currentSection.content.lessonTitle !== undefined) currentSection.content.lessonTitle = val;
+                                                    else if (currentSection.content.poemTitle !== undefined) currentSection.content.poemTitle = val;
+                                                    // Fallback if none of the specific keys match, update a generic 'text' or 'value' if it exists
+                                                    else currentSection.content = { ...currentSection.content, text: val }; // Example fallback
+                                                }
+                                            }
+                                            return newSections;
+                                        });
+                                    }}
                                     isEditing={isEditing}
                                     dir={section.isUrdu ? "rtl" : "ltr"}
                                     className={cn("text-[14px]", section.isUrdu && "font-urdu leading-relaxed")}
@@ -573,7 +718,7 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[1000] bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"
+                        className="fixed inset-0 z-1000 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"
                         onMouseDown={(e) => { if (e.target === e.currentTarget) setActiveCommand(null) }}
                     >
                         <motion.div
@@ -640,11 +785,20 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                 )}
             </AnimatePresence>
 
+            {/* AI Prompt Modal */}
+            <AISectionPromptModal
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                onGenerate={handleAIGenerated}
+                section={activeSectionAI}
+                context={paperData.paperInfo?.subject || "General"}
+            />
+
             {/* Editor Container */}
             <div className="max-w-[880px] mx-auto bg-white shadow-[0_100px_100px_-50px_rgba(0,0,0,0.15)] min-h-[1200px] relative font-sans text-black overflow-hidden ring-1 ring-zinc-200 rounded-[2px] mb-24">
 
                 {/* Floating Controls */}
-                <div className="absolute top-10 left-10 z-[200] flex flex-col gap-4 no-print">
+                <div className="absolute top-10 left-10 z-200 flex flex-col gap-4 no-print">
                     <button
                         onClick={addSection}
                         className="flex items-center gap-4 px-6 py-3 bg-zinc-900 text-white rounded-[20px] transition-all text-[11px] font-black uppercase tracking-widest border border-white/10 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.4)] hover:scale-110 active:scale-95 group"
@@ -689,6 +843,7 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                                     onDelete={() => deleteSection(section.id)}
                                     isSelected={selectedIds.includes(section.id)}
                                     onSelect={() => toggleSelect(section.id)}
+                                    onAIAction={() => handleAIAction(section)}
                                 >
                                     {renderSection(section)}
                                 </SortableSection>
@@ -707,7 +862,7 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] p-1 bg-zinc-950/20 backdrop-blur-3xl rounded-[40px] shadow-[0_48px_64px_-16px_rgba(0,0,0,0.4)] ring-1 ring-white/20 no-print"
+                        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-1000 p-1 bg-zinc-950/20 backdrop-blur-3xl rounded-[40px] shadow-[0_48px_64px_-16px_rgba(0,0,0,0.4)] ring-1 ring-white/20 no-print"
                     >
                         <div className="bg-zinc-900 text-white rounded-[38px] px-10 py-6 flex items-center gap-10">
                             <div className="flex flex-col border-r border-white/10 pr-10">
@@ -740,7 +895,10 @@ export function PaperArchitectEditor({ paperData, setPaperData, isEditing }: Pap
                                 <button onClick={() => applyBulkStyle({ fontStyle: 'italic' })} className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center hover:bg-emerald-500 transition-all font-serif italic text-lg" title="Italic">I</button>
                                 <button onClick={() => applyBulkStyle({ textDecoration: 'underline' })} className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center hover:bg-emerald-500 transition-all underline text-lg" title="Underline">U</button>
                                 <button onClick={() => applyBulkStyle({ textAlign: 'center' })} className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center hover:bg-emerald-500 transition-all" title="Center Align"><Layout className="w-5 h-5" /></button>
-                                <button onClick={() => setSelectedIds([])} className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white transition-all"><Trash2 className="w-5 h-5" /></button>
+                                <button onClick={() => {
+                                    setSections(prev => prev.filter(s => !selectedIds.includes(s.id)))
+                                    setSelectedIds([])
+                                }} className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white transition-all" title="Delete Selection"><Trash2 className="w-5 h-5" /></button>
                             </div>
                         </div>
                     </motion.div>

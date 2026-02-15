@@ -28,7 +28,8 @@ import {
     MessageCircle,
     MoreHorizontal,
     CreditCard,
-    UsersIcon
+    UsersIcon,
+    Sparkles
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -91,6 +92,36 @@ export default function StudentRoster() {
     const { authFetch, user: authUser, loading: authLoading } = useAuthenticatedFetch()
     const { profile } = useAuth()
     const router = useRouter()
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+
+    const loadImageAsBase64 = (url: string): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            if (!url) return reject(new Error("No URL provided"));
+            if (url.startsWith('data:')) return resolve(url);
+
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext("2d");
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL("image/png"));
+                    } else {
+                        reject(new Error("Canvas context null"));
+                    }
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            img.onerror = () => reject(new Error(`Failed to load: ${url}`));
+            img.src = url;
+        });
+    };
 
     // Form State for Deploy
     const [formData, setFormData] = useState({
@@ -303,6 +334,38 @@ export default function StudentRoster() {
         })
     }
 
+    const generateAIRemarks = async (student: any) => {
+        try {
+            setIsGeneratingAI(true)
+            const res = await authFetch('/api/ai/report-remarks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: student.name,
+                    grade: student.grade,
+                    performance: student.performance,
+                    subjects: student.academicData?.marks || {}
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                handleQuickUpdate(student.id, {
+                    academicData: {
+                        ...(student.academicData || {}),
+                        remarks: data.remarks
+                    }
+                })
+                toast.success("AI Remarks Generated")
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error("Failed to connect to AI Mind")
+        } finally {
+            setIsGeneratingAI(false)
+        }
+    }
+
     const toggleSelect = (id: string) => {
         setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
     }
@@ -328,8 +391,9 @@ export default function StudentRoster() {
         }
     }
 
-    const generatePDF = (student: any) => {
+    const generatePDF = async (student: any) => {
         try {
+            setIsExporting(true)
             const doc = new jsPDF();
             // ... (keeping PDF generation logic as is, it's specific)
             const pageWidth = doc.internal.pageSize.width;
@@ -340,8 +404,15 @@ export default function StudentRoster() {
             doc.setLineWidth(0.5);
             doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
 
-            doc.setFillColor(16, 185, 129);
-            doc.circle(margin + 5, 25, 4, 'F');
+            // Add Header Logo
+            try {
+                const logoBase64 = await loadImageAsBase64('/academy-logo.png');
+                doc.addImage(logoBase64, "PNG", margin, 18, 12, 12);
+            } catch (e) {
+                console.error("Failed to add logo to PDF", e);
+                doc.setFillColor(16, 185, 129);
+                doc.circle(margin + 5, 25, 4, 'F');
+            }
 
             doc.setTextColor(20, 20, 20);
             doc.setFontSize(22);
@@ -367,17 +438,14 @@ export default function StudentRoster() {
             const infoStartY = 55;
             if (student.imageUrl) {
                 try {
-                    // Assuming student.imageUrl is a base64 string or a valid URL
-                    // If it's a URL, it might need to be converted to base64 first to avoid CORS issues in jsPDF
-                    // However, if the image was uploaded via the dashboard, it might already be base64 or a local blob
-                    doc.addImage(student.imageUrl, "JPEG", margin, infoStartY, 30, 30);
-                    // Draw a border around the image
+                    const studentBase64 = await loadImageAsBase64(student.imageUrl);
+                    // Use PNG as canvas returns PNG
+                    doc.addImage(studentBase64, "PNG", margin, infoStartY, 30, 30);
                     doc.setDrawColor(200, 200, 200);
                     doc.setLineWidth(0.5);
                     doc.roundedRect(margin, infoStartY, 30, 30, 2, 2);
                 } catch (e) {
-                    console.error("Failed to add image to PDF", e);
-                    // Fallback to placeholder
+                    console.error("Failed to add student photo to PDF:", e);
                     doc.setFillColor(245, 245, 245);
                     doc.roundedRect(margin, infoStartY, 30, 30, 2, 2, 'F');
                     doc.setFontSize(8);
@@ -434,8 +502,10 @@ export default function StudentRoster() {
                 ["Overall Projection", "SATISFACTORY", "PROMOTED"]
             ];
 
+            let currentY = tableY;
+
             autoTable(doc, {
-                startY: tableY,
+                startY: currentY,
                 head: [['METRIC', 'VALUE', 'REMARKS']],
                 body: perfData,
                 theme: 'striped',
@@ -460,7 +530,65 @@ export default function StudentRoster() {
                 }
             });
 
-            const sigY = pageHeight - 50;
+            currentY = (doc as any).lastAutoTable.finalY;
+
+            // Subject Marks Table
+            const marksData = Object.entries(student.academicData?.marks || {}).map(([sub, mark]) => {
+                const m = parseInt(mark as string) || 0;
+                let grade = 'F';
+                if (m >= 80) grade = 'A+';
+                else if (m >= 70) grade = 'A';
+                else if (m >= 60) grade = 'B';
+                else if (m >= 50) grade = 'C';
+                else if (m >= 40) grade = 'D';
+
+                return [sub.toUpperCase(), `${m}/100`, grade, m >= 40 ? "PASSED" : "FAILED"];
+            });
+
+            if (marksData.length > 0) {
+                const totalMarks = Object.values(student.academicData?.marks || {}).reduce((acc: number, cur: any) => acc + (parseInt(cur) || 0), 0);
+                const avgPercentage = (totalMarks / (marksData.length * 100)) * 100;
+
+                const footerRow = [
+                    { content: 'TOTAL AGGREGATE', colSpan: 1, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                    { content: `${totalMarks}/${marksData.length * 100}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                    { content: `${avgPercentage.toFixed(1)}%`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                    { content: avgPercentage >= 40 ? 'QUALIFIED' : 'RETAINED', styles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: avgPercentage >= 40 ? [16, 185, 129] : [225, 29, 72] } }
+                ];
+
+                autoTable(doc, {
+                    startY: currentY + 15,
+                    head: [['SUBJECT', 'OBTAINED', 'GRADE', 'STATUS']],
+                    body: [...marksData, footerRow] as any,
+                    theme: 'grid',
+                    headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    styles: { fontSize: 9, cellPadding: 4 },
+                    columnStyles: { 0: { fontStyle: 'bold' } }
+                });
+
+                currentY = (doc as any).lastAutoTable.finalY;
+            }
+
+            // AI Counselor Remarks
+            if (student.academicData?.remarks) {
+                const remarksY = currentY + 15;
+                doc.setFontSize(10);
+                doc.setTextColor(16, 185, 129);
+                doc.setFont("helvetica", "bold");
+                doc.text("AI COUNSELOR QUALITATIVE ANALYSIS", margin, remarksY);
+
+                doc.setDrawColor(230, 230, 230);
+                doc.setFillColor(252, 252, 252);
+                doc.roundedRect(margin, remarksY + 3, pageWidth - (margin * 2), 20, 3, 3, 'FD');
+
+                doc.setFontSize(9);
+                doc.setTextColor(60, 60, 60);
+                doc.setFont("helvetica", "italic");
+                const splitRemarks = doc.splitTextToSize(student.academicData.remarks, pageWidth - (margin * 2) - 10);
+                doc.text(splitRemarks, margin + 5, remarksY + 10);
+            }
+
+            const sigY = pageHeight - 45;
             doc.setDrawColor(200, 200, 200);
             doc.setLineWidth(0.5);
             doc.line(margin, sigY, margin + 60, sigY);
@@ -475,15 +603,34 @@ export default function StudentRoster() {
             doc.setFontSize(7);
             doc.setTextColor(150, 150, 150);
             doc.text("This report is system generated and securely verified by Amin Academy Oversight.", pageWidth / 2, pageHeight - 15, { align: "center" });
-
             doc.save(`Amin_Academy_Report_${student.rollNumber}.pdf`);
             toast.success("Premium Report Exported");
-        } catch (err) {
-            console.error(err);
-            toast.error("PDF Synthesis Failed");
+        } catch (err: any) {
+            console.error("PDF GENERATION ERROR:", err);
+            toast.error(`Report failed: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsExporting(false)
         }
     }
 
+
+    const handleBulkExport = async () => {
+        if (selected.length === 0) {
+            toast.error("No students selected")
+            return
+        }
+
+        const loadingToast = toast.loading(`Generating ${selected.length} reports...`)
+        try {
+            for (const id of selected) {
+                const student = students.find(s => s.id === id)
+                if (student) await generatePDF(student)
+            }
+            toast.success("Bulk Export Complete", { id: loadingToast })
+        } catch (error) {
+            toast.error("Bulk synthesis failed", { id: loadingToast })
+        }
+    }
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in duration-700">
@@ -566,7 +713,7 @@ export default function StudentRoster() {
                             <div className="flex items-center justify-around">
                                 <div
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="w-32 h-32 rounded-[2rem] bg-zinc-900/50 border-2 border-dashed border-white/5 hover:border-emerald-500/50 flex items-center justify-center cursor-pointer overflow-hidden relative group transition-all"
+                                    className="w-32 h-32 rounded-4xl bg-zinc-900/50 border-2 border-dashed border-white/5 hover:border-emerald-500/50 flex items-center justify-center cursor-pointer overflow-hidden relative group transition-all"
                                 >
                                     {formData.imageUrl ? (
                                         <img src={formData.imageUrl} alt="preview" className="w-full h-full object-cover" />
@@ -667,7 +814,7 @@ export default function StudentRoster() {
                     </DialogContent>
                 </Dialog>
             </div><Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-                    <DialogContent className="max-w-md bg-zinc-950 border border-red-500/20 text-zinc-100 rounded-[2rem] p-8">
+                    <DialogContent className="max-w-md bg-zinc-950 border border-red-500/20 text-zinc-100 rounded-4xl p-8">
                         <DialogHeader className="flex flex-col items-center text-center">
                             <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4 animate-pulse">
                                 <ShieldAlert className="w-8 h-8 text-red-500" />
@@ -713,7 +860,12 @@ export default function StudentRoster() {
                         </div>
                         {selected.length > 0 && (
                             <div className="flex gap-2 animate-in slide-in-from-left duration-300">
-                                <Button size="sm" variant="outline" className="h-9 px-4 rounded-xl border-white/5 bg-zinc-900/50 text-[10px] uppercase font-black tracking-widest hover:bg-emerald-500 hover:text-black">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleBulkExport}
+                                    className="h-9 px-4 rounded-xl border-white/5 bg-zinc-900/50 text-[10px] uppercase font-black tracking-widest hover:bg-emerald-500 hover:text-black"
+                                >
                                     <Download className="mr-2 h-3 w-3" /> Export Ledger
                                 </Button>
                                 <Button size="sm" variant="outline" className="h-9 px-4 rounded-xl border-white/5 bg-zinc-900/50 text-[10px] uppercase font-black tracking-widest hover:bg-emerald-500 hover:text-black">
@@ -847,7 +999,7 @@ export default function StudentRoster() {
                 <SheetContent className="w-full sm:max-w-md bg-zinc-950 border-white/5 text-zinc-100 p-0 overflow-y-auto">
                     {detailStudent && (
                         <div className="flex flex-col h-full">
-                            <div className="h-32 bg-gradient-to-br from-emerald-500 to-emerald-900 relative">
+                            <div className="h-32 bg-linear-to-br from-emerald-500 to-emerald-900 relative">
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -1036,17 +1188,79 @@ export default function StudentRoster() {
                                             <Button onClick={() => handleContact(detailStudent, 'wa')} className="bg-[#25D366] hover:bg-[#128C7E] text-white font-black uppercase text-[10px] tracking-widest rounded-xl">
                                                 <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
                                             </Button>
-                                            <Button onClick={() => generatePDF(detailStudent)} className="bg-white text-black hover:bg-emerald-500 font-black uppercase text-[10px] tracking-widest rounded-xl">
-                                                <Download className="mr-2 h-4 w-4" /> Export Report
+                                            <Button
+                                                onClick={() => generatePDF(detailStudent)}
+                                                disabled={isExporting}
+                                                className="bg-white text-black hover:bg-emerald-500 font-black uppercase text-[10px] tracking-widest rounded-xl"
+                                            >
+                                                {isExporting ? <RefreshCcw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                {isExporting ? 'Exporting...' : 'Export Report'}
                                             </Button>
                                         </div>
 
                                         <div className="space-y-6">
                                             <section>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4">Node Logistics</h3>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Academic Data</h3>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        disabled={isGeneratingAI}
+                                                        onClick={() => generateAIRemarks(detailStudent)}
+                                                        className="h-8 text-[9px] uppercase font-black bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 rounded-lg px-3"
+                                                    >
+                                                        {isGeneratingAI ? <RefreshCcw className="w-3 h-3 animate-spin mr-2" /> : <Sparkles className="w-3 h-3 mr-2" />}
+                                                        {detailStudent.academicData?.remarks ? 'Regenerate Remarks' : 'AI Analysis'}
+                                                    </Button>
+                                                </div>
+
+                                                {detailStudent.academicData?.remarks && (
+                                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 mb-4">
+                                                        <p className="text-xs text-zinc-300 italic leading-relaxed">
+                                                            "{detailStudent.academicData.remarks}"
+                                                        </p>
+                                                        <p className="text-[8px] uppercase font-black text-emerald-500/50 mt-2 tracking-widest">
+                                                            — AI Counselor Insight
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    {['English', 'Urdu', 'Math', 'Science'].map(subject => (
+                                                        <div key={subject} className="bg-zinc-900/30 border border-white/5 rounded-2xl p-3 flex flex-col gap-1">
+                                                            <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">{subject}</span>
+                                                            <div className="flex items-center justify-between">
+                                                                <input
+                                                                    type="number"
+                                                                    max="100"
+                                                                    min="0"
+                                                                    placeholder="0"
+                                                                    value={detailStudent.academicData?.marks?.[subject] || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value) || 0;
+                                                                        handleQuickUpdate(detailStudent.id, {
+                                                                            academicData: {
+                                                                                ...(detailStudent.academicData || {}),
+                                                                                marks: {
+                                                                                    ...(detailStudent.academicData?.marks || {}),
+                                                                                    [subject]: val
+                                                                                }
+                                                                            }
+                                                                        })
+                                                                    }}
+                                                                    className="bg-transparent text-lg font-black text-emerald-500 w-16 outline-none"
+                                                                />
+                                                                <span className="text-[10px] font-bold text-zinc-700">/ 100</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </section>
+                                            <section>
+                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4">Student Enrollment</h3>
                                                 <div className="grid gap-4 bg-white/2 p-4 rounded-2xl border border-white/5">
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Sector</span>
+                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Grade & Section</span>
                                                         <span className="font-black text-xs uppercase italic">Grade {detailStudent.grade}-{detailStudent.section}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
@@ -1062,7 +1276,7 @@ export default function StudentRoster() {
                                                         </div>
                                                     </div>
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Fee Protocol</span>
+                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Fee Status</span>
                                                         <Badge className={detailStudent.feeStatus === 'Paid' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'}>
                                                             {detailStudent.feeStatus}
                                                         </Badge>
@@ -1071,7 +1285,7 @@ export default function StudentRoster() {
                                             </section>
 
                                             <section>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4">Critical Data</h3>
+                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-4">Guardian Information</h3>
                                                 <div className="grid gap-3">
                                                     <div className="flex items-center gap-3 text-zinc-300">
                                                         <Mail size={16} className="text-emerald-500" />

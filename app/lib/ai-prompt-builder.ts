@@ -117,9 +117,14 @@ export const buildInternetSystemPrompt = (config: PromptConfig): string => {
     specificInstructions += `
 [MATH/SCIENCE SPECIFIC INSTRUCTIONS]
 - **FORMULAS & EQUATIONS**: You MUST use LaTeX formatting for ALL math formulas, equations, and special symbols.
+- **QUADRATIC FORMULA**: Must be rendered exactly as: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$ (Ensure the denominator 2a is centered directly under the entire numerator).
 - Enclose LaTeX in single dollar signs, e.g., $E=mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$.
 - Do NOT use plain text for formulas (e.g., do not write "x^2", write "$x^2$").
-- For chemical equations, use proper notation, e.g., $H_2O$, $CO_2$.
+- **CRITICAL**: For Mathematics, EVERY single Question AND Option MUST have "en" (English) and "ur" (Urdu) fields populated. Do NOT leave Urdu empty.
+- **TERMINOLOGY**:
+  - Do NOT use the word "Theory". Use "Theorems" (Masealay) for geometry proofs.
+  - Do NOT use "Numericals". Use "Questions".
+  - Ensure all mathematical terms are correctly translated to Urdu.
 - ensure that backslashes are properly escaped in the JSON string (e.g., "\\\\frac" instead of "\\frac").
     `;
   }
@@ -130,13 +135,13 @@ export const buildInternetSystemPrompt = (config: PromptConfig): string => {
   if (isQuranSubject) {
     specificInstructions = `
 [TARJAMA-TUL-QURAN SPECIFIC INSTRUCTIONS]
-- **LANGUAGE**: This is a Quranic Translation paper. Use Arabic for Quranic text and Urdu for translations and instructions.
+- **LANGUAGE**: This is a Quranic Translation paper. Use Arabic for Quranic text and Urdu for EVERYTHING ELSE (questions, options, instructions). No English translations or Roman Urdu allowed.
 - **CRITICAL**: You MUST generate and populate the "quranData" object with vocabulary and verses.
 
-- **Section A (Objective - MCQs)**: (Count: ${mcqCount})
-  - Generate MCQs about Quranic vocabulary, translation, and comprehension.
-  - Each MCQ should test understanding of Quranic Arabic words, meanings, or translation concepts.
-  - Output in "mcqs" array with bilingual options (Arabic in "en", Urdu in "ur").
+- **Section A (Objective - MCQs)**: (Count: 10)
+  - Generate 10 high-quality MCQs about Quranic vocabulary, translation, and comprehension.
+  - Each MCQ must have a clear Urdu stem followed by 4 options (Alif, Bey, Jeem, Daal) in Urdu script.
+  - Output in "mcqs" array with Urdu text in "ur" field (leave "en" empty).
 
 - **Section B - Question 3 (Quranic Vocabulary - 5 Marks)**:
   - Provide 8 Arabic words from the Quran with their Urdu meanings.

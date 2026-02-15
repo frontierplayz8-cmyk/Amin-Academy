@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
     Printer, Save, ChevronLeft, ZoomIn, ZoomOut, Grid3x3, Languages,
     AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline,
-    Type, Palette, Box, Maximize2, GripVertical, BookOpen, Code,
+    Type, Palette, Box, Maximize2, GripVertical, BookOpen, Code, Wand2,
     ArrowUp,
     ArrowDown,
     QrCode,
@@ -22,8 +22,11 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import { storage } from '@/lib/firebase'
+import { uploadFiles } from '@/lib/uploadthing'
 import { ScholarPanel } from '@/components/scholar/ScholarPanel'
 import { PaperRenderer } from '@/components/PaperRenderer'
+import { AISectionPromptModal } from '@/components/AISectionPromptModal'
 
 function ArchitectStudioContent() {
     const router = useRouter()
@@ -40,6 +43,8 @@ function ArchitectStudioContent() {
     const [isResizing, setIsResizing] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
     const [isScholarOpen, setIsScholarOpen] = useState(false)
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+    const [activeSectionAI, setActiveSectionAI] = useState<any>(null)
     const canvasRef = useRef<HTMLDivElement>(null)
     const sidebarRef = useRef<HTMLDivElement>(null)
 
@@ -165,94 +170,121 @@ function ArchitectStudioContent() {
         }
     }
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'watermark') => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'watermark') => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        const reader = new FileReader()
-        reader.onload = (event) => {
-            const base64 = event.target?.result as string
-            if (type === 'logo') {
-                setPaperData({ ...paperData, logo: { ...paperData.logo, url: base64 } })
-                toast.success("Logo Uploaded Successfully")
+        const toastId = toast.loading(`Uploading ${type}...`)
+        try {
+            // Upload using Uploadthing
+            const res = await uploadFiles("vaultUploader", {
+                files: [file],
+            });
+
+            if (res && res[0]) {
+                const downloadURL = res[0].url
+                if (type === 'logo') {
+                    setPaperData({ ...paperData, logo: { ...paperData.logo, url: downloadURL } })
+                    toast.success("Logo Uploaded to Cloud", { id: toastId })
+                } else {
+                    setPaperData({ ...paperData, watermark: { ...paperData.watermark, image: downloadURL, text: '' } })
+                    toast.success("Watermark Uploaded to Cloud", { id: toastId })
+                }
+            }
+        } catch (error) {
+            console.error("Upload failed", error)
+            toast.error("Upload failed. Using local fallback...", { id: toastId })
+
+            // Final fallback
+            const reader = new FileReader()
+            reader.onload = (event) => {
+                const base64 = event.target?.result as string
+                if (type === 'logo') {
+                    setPaperData({ ...paperData, logo: { ...paperData.logo, url: base64 } })
+                } else {
+                    setPaperData({ ...paperData, watermark: { ...paperData.watermark, image: base64, text: '' } })
+                }
+            }
+            reader.readAsDataURL(file)
+        }
+    }
+
+    const handleAIGenerated = (data: any, action: 'ADD_CONTENT' | 'REPLACE_CONTENT' | 'IMPROVE_CONTENT') => {
+        if (!activeSectionAI || !paperData) return
+
+        const newPaperData = { ...paperData }
+        const { type } = activeSectionAI
+
+        if (type === 'mcq_group') {
+            const newMcqs = data.questions || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.mcqs = [...newPaperData.mcqs, ...newMcqs]
             } else {
-                setPaperData({ ...paperData, watermark: { ...paperData.watermark, image: base64, text: '' } })
-                toast.success("Watermark Image Uploaded")
+                newPaperData.mcqs = newMcqs
+            }
+        } else if (type === 'short_questions' || type === 'short-questions-lessons') {
+            const newSq = data.items || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.shortQuestions = [...newPaperData.shortQuestions, ...newSq]
+            } else {
+                newPaperData.shortQuestions = newSq
+            }
+        } else if (type === 'long_questions' || type === 'subjective_q') {
+            const newLq = data.items || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.longQuestions = [...newPaperData.longQuestions, ...newLq]
+            } else {
+                newPaperData.longQuestions = newLq
+            }
+        } else {
+            // Header or Title or specific text block
+            const targetId = activeSectionAI.id
+            if (targetId.includes('header_')) {
+                const key = targetId.replace('header_', '')
+                newPaperData.headerDetails = { ...newPaperData.headerDetails, [key]: data.improvedText || data }
+            } else if (targetId === 'subj_title') {
+                newPaperData.headerDetails = { ...newPaperData.headerDetails, part2Title: data.improvedText || data }
             }
         }
-        reader.readAsDataURL(file)
+
+        setPaperData(newPaperData)
+        setIsAIModalOpen(false)
+        setActiveSectionAI(null)
+        toast.success("Magic Action Complete!")
+    }
+
+    const handleAIAction = (id: string, type: string, title: string, content: any) => {
+        setActiveSectionAI({ id, type, title, content: content || paperData })
+        setIsAIModalOpen(true)
     }
 
     const handleAIImprove = async () => {
-        if (selectedSectionIds.length === 0) return
-        const targetId = selectedSectionIds[0]
-        const toastId = toast.loading("AI is refining your content...")
-
-        try {
-            // Find content based on ID
-            let currentText = ""
-            if (targetId.includes('header_')) {
-                const key = targetId.replace('header_', '') as keyof typeof paperData.headerDetails
-                currentText = paperData.headerDetails?.[key] || ""
-            } else if (targetId.includes('mcq-')) {
-                const parts = targetId.split('-')
-                const idx = parseInt(parts[1])
-                const type = parts[2] // 'question' or 'opt'
-                if (type === 'question') {
-                    currentText = paperData.mcqs[idx]?.en || ""
-                } else if (type === 'opt') {
-                    const optIdx = parseInt(parts[3])
-                    currentText = paperData.mcqs[idx]?.options[optIdx]?.en || ""
-                }
-            } else if (targetId === 'subj_title') {
-                currentText = paperData.headerDetails?.part2Title || ""
-            }
-
-            if (!currentText) {
-                toast.error("Could not extract text for AI", { id: toastId })
-                return
-            }
-
-            const res = await fetch('/api/ai/architect/improve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: currentText,
-                    context: paperData.paperInfo?.subject || "General"
-                })
-            })
-            const data = await res.json()
-
-            if (data.success && data.improvedText) {
-                // Update paperData
-                const newPaperData = { ...paperData }
-                if (targetId.includes('header_')) {
-                    const key = targetId.replace('header_', '')
-                    newPaperData.headerDetails = { ...newPaperData.headerDetails, [key]: data.improvedText }
-                } else if (targetId.includes('mcq-')) {
-                    const parts = targetId.split('-')
-                    const idx = parseInt(parts[1])
-                    const type = parts[2]
-                    if (type === 'question') {
-                        newPaperData.mcqs[idx] = { ...newPaperData.mcqs[idx], en: data.improvedText }
-                    } else if (type === 'opt') {
-                        const optIdx = parseInt(parts[3])
-                        const newOptions = [...newPaperData.mcqs[idx].options]
-                        newOptions[optIdx] = { ...newOptions[optIdx], en: data.improvedText }
-                        newPaperData.mcqs[idx] = { ...newPaperData.mcqs[idx], options: newOptions }
-                    }
-                } else if (targetId === 'subj_title') {
-                    newPaperData.headerDetails = { ...newPaperData.headerDetails, part2Title: data.improvedText }
-                }
-
-                setPaperData(newPaperData)
-                toast.success("Content Refined by AI", { id: toastId })
-            } else {
-                toast.error("AI Improvement Failed", { id: toastId })
-            }
-        } catch (error) {
-            toast.error("AI Service Offline", { id: toastId })
+        if (selectedSectionIds.length === 0) {
+            toast.error("Select a section first")
+            return
         }
+
+        // Use the first selected section for AI context
+        const sectionId = selectedSectionIds[0]
+        let sectionType = "general"
+        let sectionContent = null
+        let sectionTitle = "Selected Section"
+
+        if (sectionId.includes('header')) {
+            sectionType = 'header'
+            sectionContent = paperData.headerDetails
+            sectionTitle = "Header Details"
+        } else if (sectionId.includes('mcq')) {
+            sectionType = 'mcq_group'
+            sectionContent = paperData.mcqs
+            sectionTitle = "MCQ Section"
+        } else if (sectionId === 'subj_title') {
+            sectionType = 'subjective_title'
+            sectionContent = paperData.headerDetails?.part2Title
+            sectionTitle = "Subjective Title"
+        }
+
+        handleAIAction(sectionId, sectionType, sectionTitle, sectionContent)
     }
 
     const handleExportPDF = async () => {
@@ -262,17 +294,38 @@ function ArchitectStudioContent() {
         try {
             await document.fonts.ready;
 
+            const el = canvasRef.current;
+            el.classList.add('pdf-capture-safe');
+
             const theme = sectionStyles.page?.theme || 'clean';
             const pageSize = sectionStyles.page?.size || 'a4';
 
             // Higher scale for razor sharp text (4x)
-            const canvas = await html2canvas(canvasRef.current, {
+            const canvas = await html2canvas(el, {
                 scale: 4,
                 useCORS: true,
                 logging: false,
                 backgroundColor: theme === 'vintage' ? '#fdf6e3' : '#ffffff',
-                windowWidth: canvasRef.current.scrollWidth,
-                windowHeight: canvasRef.current.scrollHeight
+                windowWidth: el.scrollWidth,
+                windowHeight: el.scrollHeight,
+                height: el.scrollHeight,
+                onclone: (clonedDoc) => {
+                    const allElements = clonedDoc.querySelectorAll('*')
+                    allElements.forEach((el: any) => {
+                        try {
+                            const style = window.getComputedStyle(el)
+                            const hasBadColor = (val: string | null) => val && (val.includes('oklch') || val.includes('lab') || val.includes('color-mix'))
+
+                            if (hasBadColor(style.color)) el.style.setProperty('color', '#000000', 'important')
+                            if (hasBadColor(style.backgroundColor)) el.style.setProperty('background-color', theme === 'vintage' ? '#fdf6e3' : '#ffffff', 'important')
+                            if (hasBadColor(style.borderColor)) el.style.setProperty('border-color', '#000000', 'important')
+                            if (hasBadColor(style.fill)) el.style.setProperty('fill', '#000000', 'important')
+                            if (hasBadColor(style.stroke)) el.style.setProperty('stroke', '#000000', 'important')
+                            if (hasBadColor(style.boxShadow)) el.style.setProperty('box-shadow', 'none', 'important')
+                            if (hasBadColor(style.textShadow)) el.style.setProperty('text-shadow', 'none', 'important')
+                        } catch (e) { }
+                    })
+                }
             });
 
             const pdf = new jsPDF({
@@ -282,36 +335,86 @@ function ArchitectStudioContent() {
                 compress: true
             });
 
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
+            // Smart Pagination Logic
+            const avoidBreakElements = el.querySelectorAll('.page-break-inside-avoid, .section-container')
+            const breakPoints: number[] = [0]
+            const containerRect = el.getBoundingClientRect()
 
-            // Calculate dimensions to fit width
-            const ratio = pdfWidth / canvas.width;
-            const finalWidth = canvas.width * ratio;
-            const finalHeight = canvas.height * ratio;
+            avoidBreakElements.forEach((element) => {
+                const rect = element.getBoundingClientRect()
+                const relativeTop = rect.top - containerRect.top
+                const relativeBottom = rect.bottom - containerRect.top
+                breakPoints.push(relativeTop)
+                breakPoints.push(relativeBottom)
+            })
+            breakPoints.sort((a, b) => a - b)
 
-            // Simple multi-page logic
-            if (finalHeight > pdfHeight) {
-                let heightLeft = finalHeight;
-                let position = 0;
+            const pdfWidth = pdf.internal.pageSize.getWidth()
+            const pdfHeight = pdf.internal.pageSize.getHeight()
 
-                pdf.addImage(imgData, 'PNG', 0, position, finalWidth, finalHeight, undefined, 'FAST');
-                heightLeft -= pdfHeight;
+            const canvasWidth = canvas.width
+            const canvasHeight = canvas.height
+            const scale = 4 // Matches html2canvas scale
+            const ratio = canvasWidth / pdfWidth
+            const pageHeightInCanvas = pdfHeight * ratio
 
-                while (heightLeft > 0) {
-                    position = heightLeft - pdfHeight; // Corrected position calculation for subsequent pages
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, finalWidth, finalHeight, undefined, 'FAST');
-                    heightLeft -= pdfHeight;
+            let currentY = 0
+            let pageNumber = 0
+
+            while (currentY < canvasHeight) {
+                if (pageNumber > 0) pdf.addPage()
+
+                let targetY = currentY + pageHeightInCanvas
+
+                // Find the best break point near the target
+                if (targetY < canvasHeight) {
+                    const searchRange = 100 * scale
+                    let bestBreak = targetY
+                    let maxGap = 0
+
+                    for (let i = 0; i < breakPoints.length - 1; i++) {
+                        const gapStart = breakPoints[i] * scale
+                        const gapEnd = breakPoints[i + 1] * scale
+                        const gapMid = (gapStart + gapEnd) / 2
+
+                        if (Math.abs(gapMid - targetY) < searchRange) {
+                            const gapSize = gapEnd - gapStart
+                            if (gapSize > maxGap) {
+                                maxGap = gapSize
+                                bestBreak = gapEnd
+                            }
+                        }
+                    }
+
+                    if (maxGap > 20 * scale) {
+                        targetY = bestBreak
+                    }
                 }
-            } else {
-                pdf.addImage(imgData, 'PNG', 0, 0, finalWidth, finalHeight, undefined, 'FAST');
+
+                const remainingHeight = canvasHeight - currentY
+                const sliceHeight = Math.min(targetY - currentY, remainingHeight)
+
+                const pageCanvas = document.createElement('canvas')
+                pageCanvas.width = canvasWidth
+                pageCanvas.height = sliceHeight
+
+                const pageCtx = pageCanvas.getContext('2d')
+                if (pageCtx) {
+                    pageCtx.drawImage(canvas, 0, currentY, canvasWidth, sliceHeight, 0, 0, canvasWidth, sliceHeight)
+                    const pageImgData = pageCanvas.toDataURL('image/png', 1.0)
+                    const imgHeightOnPdf = (sliceHeight / canvasWidth) * pdfWidth
+                    pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, imgHeightOnPdf, undefined, 'FAST')
+                }
+
+                currentY += sliceHeight
+                pageNumber++
             }
 
             pdf.save(`Paper_${paperData.paperInfo.subject}_${Date.now()}.pdf`);
+            el.classList.remove('pdf-capture-safe');
             toast.success("PDF Exported Successfully", { id: toastId });
         } catch (error) {
+            canvasRef.current?.classList.remove('pdf-capture-safe');
             toast.error("Export Failed", { id: toastId });
             console.error(error);
         }
@@ -582,7 +685,7 @@ function ArchitectStudioContent() {
 
                                         {/* AI Magic Improve */}
                                         <Button
-                                            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold h-12 rounded-xl border border-white/10 shadow-lg shadow-purple-500/20"
+                                            className="w-full bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold h-12 rounded-xl border border-white/10 shadow-lg shadow-purple-500/20"
                                             onClick={async () => {
                                                 const toastId = toast.loading("AI is thinking...");
                                                 // Simulated AI Rephrase
@@ -1640,6 +1743,7 @@ function ArchitectStudioContent() {
                         onSectionClick={onSectionClick}
                         sectionStyles={sectionStyles}
                         setPaperData={setPaperData}
+                        onAIAction={handleAIAction}
                         isEditing={true}
                     />
                 </div>
@@ -1660,6 +1764,14 @@ function ArchitectStudioContent() {
             background: rgba(255, 255, 255, 0.2);
         }
     `}</style>
+
+            <AISectionPromptModal
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                onGenerate={handleAIGenerated}
+                section={activeSectionAI}
+                context={paperData?.paperInfo?.subject || "General"}
+            />
 
             <ScholarPanel isOpen={isScholarOpen} onClose={() => setIsScholarOpen(false)} />
         </div>

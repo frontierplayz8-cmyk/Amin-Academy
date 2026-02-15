@@ -86,13 +86,13 @@ const DocumentationPage = () => {
                             <section id="getting-started" className="scroll-mt-32 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                                 <div className="flex items-center gap-3 text-emerald-500 mb-4">
                                     <Zap size={24} fill="currentColor" />
-                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">Initialization</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">GETTING STARTED</span>
                                 </div>
                                 <h1 className="text-4xl lg:text-6xl font-black uppercase italic tracking-tighter leading-tight">
-                                    System <span className="text-emerald-500">Deployment</span>
+                                    System <span className="text-emerald-500">Setup</span>
                                 </h1>
                                 <p className="text-zinc-400 text-lg leading-relaxed font-medium max-w-2xl">
-                                    Welcome to the Amin Academy neural interface. This documentation outlines the protocols for operating the most advanced AI-driven academic ecosystem in the region.
+                                    Welcome to the Amin Academy interface. This documentation outlines the protocols for operating our AI-driven academic platform.
                                 </p>
 
                                 <div className="grid md:grid-cols-2 gap-6 mt-12">
@@ -101,9 +101,9 @@ const DocumentationPage = () => {
                                             <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
                                                 <Cpu size={20} />
                                             </div>
-                                            <h3 className="text-sm font-bold text-white tracking-tight">Neural Fabric</h3>
+                                            <h3 className="text-sm font-bold text-white tracking-tight">AI Core</h3>
                                             <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-                                                Proprietary LLM orchestration for pedagogical synthesis and real-time student evaluation.
+                                                Advanced LLM orchestration for teaching assistance and real-time student evaluation.
                                             </p>
                                         </div>
                                     </Card>
@@ -112,9 +112,9 @@ const DocumentationPage = () => {
                                             <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
                                                 <Network size={20} />
                                             </div>
-                                            <h3 className="text-sm font-bold text-white tracking-tight">Distributed Infrastructure</h3>
+                                            <h3 className="text-sm font-bold text-white tracking-tight">Cloud Infrastructure</h3>
                                             <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-                                                Edge-accelerated academic delivery with under 100ms latency for AI voice interactions.
+                                                Fast academic delivery with under 100ms latency for AI voice interactions.
                                             </p>
                                         </div>
                                     </Card>
@@ -126,11 +126,11 @@ const DocumentationPage = () => {
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 text-emerald-500">
                                         <Lock size={24} />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">Cyber Security</span>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">Security</span>
                                     </div>
                                     <h2 className="text-3xl font-black uppercase italic tracking-tight">Access Control Protocols</h2>
                                     <p className="text-zinc-400 leading-relaxed font-medium">
-                                        Our security architecture utilizes triple-layer encryption and JWT-based session management to ensure absolute data integrity.
+                                        Our security architecture utilizes professional encryption and session management to ensure absolute data integrity.
                                     </p>
                                 </div>
 
@@ -149,7 +149,7 @@ const DocumentationPage = () => {
                                     <AccordionItem value="item-2" className="border-white/5 bg-zinc-900/20 rounded-2xl px-6">
                                         <AccordionTrigger className="text-sm font-bold hover:no-underline text-zinc-300">Session Persistence</AccordionTrigger>
                                         <AccordionContent className="text-zinc-500 text-xs leading-relaxed font-medium pb-4">
-                                            Cryptographic tokens are rotated every 24 hours. Failure to sync with the Firebase Auth service will trigger an immediate terminal lockout (Error 401).
+                                            Authentication tokens are rotated periodically. Failure to sync with the login service will trigger an account lockout.
                                         </AccordionContent>
                                     </AccordionItem>
                                 </Accordion>
@@ -167,20 +167,20 @@ const DocumentationPage = () => {
                                     </div>
                                     <h2 className="text-3xl font-black uppercase italic tracking-tight">Teacher Workflows</h2>
                                     <p className="text-zinc-400 leading-relaxed font-medium">
-                                        Transform academic labor into frictionless automation. Our teacher suite focuses on high-impact instructional delivery.
+                                        Simplify academic tasks with professional automation. Our teacher suite focuses on high-impact instructional delivery.
                                     </p>
                                 </div>
 
                                 <div className="space-y-6">
-                                    <div className="p-8 rounded-3xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/5 relative overflow-hidden group">
+                                    <div className="p-8 rounded-3xl bg-linear-to-br from-zinc-900 to-zinc-950 border border-white/5 relative overflow-hidden group">
                                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
                                             <Code2 size={120} />
                                         </div>
                                         <div className="relative z-10 space-y-4">
                                             <Badge className="bg-emerald-500/10 text-emerald-500 border-none px-3 font-black text-[9px] uppercase tracking-widest">Core Function</Badge>
-                                            <h3 className="text-xl font-bold">BISE Exam Synthesis</h3>
+                                            <h3 className="text-xl font-bold">BISE Exam Generation</h3>
                                             <p className="text-xs text-zinc-500 leading-relaxed font-medium max-w-lg">
-                                                Our algorithms analyze official board patterns (BISE Lahore/Punjab) to generate examinations with 100% curriculum coverage and precise formatting.
+                                                Our system analyzes official board patterns (BISE Lahore/Punjab) to generate examinations with full curriculum coverage and precise formatting.
                                             </p>
                                             <div className="flex items-center gap-6 pt-2">
                                                 <div className="flex flex-col">
@@ -217,18 +217,18 @@ const DocumentationPage = () => {
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 text-emerald-500">
                                         <ShieldCheck size={24} />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">Command</span>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] italic">Administration</span>
                                     </div>
-                                    <h2 className="text-3xl font-black uppercase italic tracking-tight">Administrative Hub</h2>
+                                    <h2 className="text-3xl font-black uppercase italic tracking-tight">Principal Settings</h2>
                                     <p className="text-zinc-400 leading-relaxed font-medium">
-                                        The strategic command center for institutional oversight. Manage operations with macro-level visibility.
+                                        The strategic center for institutional management. Manage school operations with clear visibility.
                                     </p>
                                 </div>
 
                                 <div className="grid gap-4">
                                     {[
-                                        { title: 'Student Roster Matrix', desc: 'Real-time synchronization of student enrollment, biodata, and academic standing.', icon: Fingerprint },
-                                        { title: 'Fiscal Management', desc: 'Autonomous fee tracking, processing, and automated arrear notifications.', icon: Database },
+                                        { title: 'Student List', desc: 'Real-time synchronization of student enrollment, biodata, and academic standing.', icon: Fingerprint },
+                                        { title: 'Fee Management', desc: 'Automatic fee tracking, processing, and automated payment notifications.', icon: Database },
                                     ].map((item, idx) => (
                                         <div key={idx} className="flex items-start gap-4 p-5 rounded-2xl bg-zinc-900/20 border border-white/5 hover:bg-zinc-900/40 transition-colors">
                                             <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-400 shrink-0">
@@ -252,17 +252,17 @@ const DocumentationPage = () => {
                                     </div>
                                     <h2 className="text-3xl font-black uppercase italic tracking-tight">AI Learning Systems</h2>
                                     <p className="text-zinc-400 leading-relaxed font-medium">
-                                        Beyond simple tutoring. Our learning systems adapt to individual neural pathways for hyper-efficient knowledge transfer.
+                                        Beyond simple tutoring. Our learning systems adapt to individual learning paths for efficient knowledge transfer.
                                     </p>
                                 </div>
 
                                 <Card className="bg-[#050505] border-white/5 rounded-3xl p-8 relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
+                                    <div className="absolute inset-0 bg-linear-to-tr from-emerald-500/5 to-transparent pointer-events-none" />
                                     <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
                                         <div className="flex-1 space-y-6">
                                             <div className="space-y-2">
                                                 <h3 className="text-xl font-bold">The AI Study Room</h3>
-                                                <p className="text-xs text-zinc-500 leading-relaxed font-medium italic">"The future of education is a 1-on-1 dialogue with omniscience."</p>
+                                                <p className="text-xs text-zinc-500 leading-relaxed font-medium italic">"The future of education is a personalized 1-on-1 learning experience."</p>
                                             </div>
                                             <ul className="space-y-3">
                                                 {[
@@ -298,9 +298,9 @@ const DocumentationPage = () => {
                                 <div className="grid md:grid-cols-2 gap-4">
                                     {[
                                         { q: 'My microphone is not connecting', a: 'Ensure you have granted permission in the browser settings and no other app is using the hardware.' },
-                                        { q: 'Error 403: Access Denied', a: 'Your session token has expired or your clearance level is insufficient for this module.' },
-                                        { q: 'Page layout is broken', a: 'The system uses advanced CSS features. Ensure you are on the latest version of Chrome or Edge.' },
-                                        { q: 'Late fee notification bug', a: 'Check the Fiscal Management module to verify the billing cycle hasn’t been manually overridden.' }
+                                        { q: 'Error 403: Access Denied', a: 'Your session has expired or your permissions are insufficient for this module.' },
+                                        { q: 'Page layout is broken', a: 'The system uses modern CSS features. Ensure you are on the latest version of Chrome or Edge.' },
+                                        { q: 'Fee notification issue', a: 'Check the Fee Management module to verify the billing cycle.' }
                                     ].map((item, idx) => (
                                         <div key={idx} className="p-6 rounded-2xl bg-zinc-900 border border-white/5 space-y-2">
                                             <h4 className="text-xs font-black text-zinc-200 uppercase tracking-wide flex items-center gap-2">

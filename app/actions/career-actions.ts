@@ -26,11 +26,23 @@ export async function submitTeacherApplicationAction(formData: FormData) {
             qualifications,
             linkedinProfile,
             message,
+            applicantId: formData.get('applicantId') as string || null,
             status: 'pending',
             submittedAt: new Date().toISOString(),
         };
 
         const docRef = await adminDb.collection('teacher_applications').add(applicationData);
+
+        // Create notification for Principal
+        await adminDb.collection('notifications').add({
+            userId: 'principal_admin', // Standard ID for principal notifications
+            type: 'career_application',
+            title: 'New Teacher Application',
+            message: `${fullName} has submitted an application for ${subject}.`,
+            status: 'unread',
+            data: { applicationId: docRef.id },
+            timestamp: new Date().toISOString()
+        });
 
         return { success: true, id: docRef.id };
     } catch (error: any) {

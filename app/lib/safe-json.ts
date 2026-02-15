@@ -61,16 +61,35 @@ export function repairTruncatedJSON(jsonString: string): string {
     return trimmed;
 }
 
+export function repairInvalidEscapes(jsonString: string): string {
+    // Escapes backslashes that are NOT part of a valid JSON escape sequence
+    return jsonString.replace(/\\(?![bfnrtu"\\/]|u[0-9a-fA-F]{4})/g, '\\\\');
+}
+
 export function safeJSONParse<T>(jsonString: string, fallback: T): T {
     try {
         return JSON.parse(jsonString);
     } catch (e) {
+        // Attempt 1: Repair invalid escapes (common in AI LaTeX output)
         try {
-            const repaired = repairTruncatedJSON(jsonString);
-            return JSON.parse(repaired);
-        } catch (repairError) {
-            console.error("JSON Repair Failed:", repairError);
-            return fallback;
+            const escaped = repairInvalidEscapes(jsonString);
+            return JSON.parse(escaped);
+        } catch (escapeError) {
+            // Attempt 2: Repair truncation on the ORIGINAL string
+            try {
+                const repaired = repairTruncatedJSON(jsonString);
+                return JSON.parse(repaired);
+            } catch (repairError) {
+                // Attempt 3: Repair truncation on the ESCAPED string
+                try {
+                    const escaped = repairInvalidEscapes(jsonString);
+                    const repairedEscaped = repairTruncatedJSON(escaped);
+                    return JSON.parse(repairedEscaped);
+                } catch (finalError) {
+                    console.error("JSON Repair Failed:", finalError);
+                    return fallback;
+                }
+            }
         }
     }
 }

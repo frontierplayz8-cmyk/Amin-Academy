@@ -22,8 +22,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { submitTeacherApplicationAction } from '@/app/actions/career-actions';
+import { useAuth } from '@/context/AuthContext';
+import { ShieldCheck, Info } from 'lucide-react';
 
 const CareersPage = () => {
+    const { user: authUser, loading: authLoading } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -32,6 +35,9 @@ const CareersPage = () => {
         setIsSubmitting(true);
 
         const formData = new FormData(e.currentTarget);
+        if (authUser) {
+            formData.append('applicantId', authUser.uid);
+        }
 
         try {
             const result = await submitTeacherApplicationAction(formData);
@@ -159,6 +165,14 @@ const CareersPage = () => {
                         <CardHeader>
                             <CardTitle className="text-2xl font-black uppercase italic tracking-tighter text-white">Apply Today</CardTitle>
                             <CardDescription className="text-zinc-500 uppercase text-[10px] font-bold tracking-[0.2em]">Application Form Module v1.0</CardDescription>
+                            {!authUser && !authLoading && (
+                                <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+                                    <Info className="text-amber-500 shrink-0 mt-0.5" size={14} />
+                                    <p className="text-[9px] text-amber-200/70 font-bold uppercase tracking-widest leading-relaxed">
+                                        Note: You are applying as a guest. To track your application status in your dashboard, please <a href="/login" className="text-amber-500 underline">login</a> before submitting.
+                                    </p>
+                                </div>
+                            )}
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleSubmit} className="space-y-6">

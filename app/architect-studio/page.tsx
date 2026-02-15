@@ -166,7 +166,7 @@ export default function ImageArchitectStudio() {
 
     // Global Fabric Performance Settings
     useEffect(() => {
-        (fabric as any).util.objectCaching = true;
+        // Global caching is typically on by default in modern Fabric
     }, []);
 
     // Auto-Save & History Handlers
@@ -1179,33 +1179,53 @@ export default function ImageArchitectStudio() {
             return;
         }
 
-        const toastId = toast.loading("Removing background...");
+        const toastId = toast.loading("Removing background via AI...");
         try {
-            const imgElement = (activeObj as any).getElement();
-            const blob = await removeBackground(imgElement);
-            const url = URL.createObjectURL(blob);
+            // Convert current image to base64 to send to API
+            // Using multiplier 1 to keep it fast, or higher for quality
+            const dataUrl = activeObj.toDataURL({ format: 'png', quality: 1, multiplier: 1 });
 
-            (fabric as any).FabricImage.fromURL(url).then((newImg: any) => {
-                newImg.set({
-                    left: activeObj.left,
-                    top: activeObj.top,
-                    scaleX: activeObj.scaleX,
-                    scaleY: activeObj.scaleY,
-                    angle: activeObj.angle,
-                    _layerId: Math.random()
-                });
-                fabricCanvas.current?.remove(activeObj);
-                fabricCanvas.current?.add(newImg);
-                fabricCanvas.current?.setActiveObject(newImg);
-                fabricCanvas.current?.requestRenderAll();
-                saveHistory();
-                toast.dismiss(toastId);
-                toast.success("Background removed!");
+            const response = await fetch('/api/ai/remove-bg', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataUrl })
             });
-        } catch (error) {
-            console.error(error);
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to remove background");
+            }
+
+            if (data.success && data.image) {
+                // Replicate returns a URL
+                (fabric as any).FabricImage.fromURL(data.image, { crossOrigin: 'anonymous' }).then((newImg: any) => {
+                    newImg.set({
+                        left: activeObj.left,
+                        top: activeObj.top,
+                        scaleX: activeObj.scaleX,
+                        scaleY: activeObj.scaleY,
+                        angle: activeObj.angle,
+                        _layerId: Math.random()
+                    });
+
+                    fabricCanvas.current?.remove(activeObj);
+                    fabricCanvas.current?.add(newImg);
+                    fabricCanvas.current?.setActiveObject(newImg);
+                    fabricCanvas.current?.requestRenderAll();
+                    saveHistory();
+
+                    toast.dismiss(toastId);
+                    toast.success("Background removed successfully!");
+                });
+            } else {
+                throw new Error("No image data returned");
+            }
+
+        } catch (error: any) {
+            console.error("BG Removal Error:", error);
             toast.dismiss(toastId);
-            toast.error("Failed to remove background");
+            toast.error(`Background removal failed: ${error.message}`);
         }
     };
 
@@ -1395,44 +1415,6 @@ export default function ImageArchitectStudio() {
                     <SidebarInset className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
                         <div className="flex-1 flex min-h-0 overflow-hidden relative">
                             <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                                <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-[#1e1e1e] px-4 transition-all ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 relative z-20">
-                                    <div className="flex items-center gap-2">
-                                        <SidebarTrigger className="-ml-1" />
-                                        <Separator className="mr-2 h-4" />
-                                        <Breadcrumb>
-                                            <BreadcrumbList>
-                                                <BreadcrumbItem className="hidden md:block">
-                                                    <BreadcrumbLink href="#">Project</BreadcrumbLink>
-                                                </BreadcrumbItem>
-                                                <BreadcrumbSeparator className="hidden md:block" />
-                                                <BreadcrumbItem>
-                                                    <Input
-                                                        value={projectTitle}
-                                                        onChange={(e) => setProjectTitle(e.target.value)}
-                                                        className="h-6 bg-transparent border-none text-white focus:ring-0 px-0 w-auto min-w-[100px] font-bold"
-                                                    />
-                                                </BreadcrumbItem>
-                                            </BreadcrumbList>
-                                        </Breadcrumb>
-                                    </div>
-                                    <div className="hidden lg:flex items-center gap-2 absolute left-1/2 -translate-x-1/2">
-                                        <div className="text-xs text-zinc-500 font-mono">
-                                            {dimensions.width} x {dimensions.height}
-                                        </div>
-                                    </div>
-                                    {activeTool === 'select' && (
-                                        <div className="ml-auto flex items-center gap-4 text-xs font-medium text-zinc-400">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" checked readOnly />
-                                                <span>Auto-Select</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" className="w-3 h-3 bg-zinc-800 border-none rounded" />
-                                                <span>Show Transform Controls</span>
-                                            </label>
-                                        </div>
-                                    )}
-                                </header>
 
                                 <div className="h-10 bg-[#252525] border-b border-black/40 flex items-center justify-between px-4 shrink-0 overflow-x-auto no-scrollbar">
                                     <div className="flex items-center gap-1 min-w-fit">
@@ -1553,6 +1535,7 @@ export default function ImageArchitectStudio() {
                                         applyFilter={applyFilter}
                                         fabricCanvasRef={fabricCanvas}
                                         handleClippingMask={handleClippingMask}
+                                        onRemoveBackground={handleRemoveBackground}
                                         layers={layers}
                                         selectedLayerId={selectedLayerId}
                                         onLayerSelect={(id) => {

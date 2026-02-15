@@ -70,7 +70,7 @@ export default function AccountSettings() {
                 }))
             }
         } catch (error) {
-            toast.error("Failed to fetch profile coordinates")
+            toast.error("Failed to fetch profile data")
         } finally {
             setLoading(false)
         }
@@ -122,7 +122,7 @@ export default function AccountSettings() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success("2FA Security Protocol Active")
+                toast.success("2FA Enabled")
                 setShowTwoFactorModal(false)
                 setVerificationCode('')
                 fetchProfile()
@@ -157,7 +157,7 @@ export default function AccountSettings() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success("2FA Deactivated")
+                toast.success("2FA Disabled")
                 fetchProfile()
                 setFormData(prev => ({ ...prev, twoFactorCode: '' }))
             } else {
@@ -185,7 +185,7 @@ export default function AccountSettings() {
         }
 
         setUploading(true)
-        const toastId = toast.loading("Uploading identity visual...")
+        const toastId = toast.loading("Uploading profile photo...")
 
         try {
             const storageRef = ref(storage, `profiles/${auth.currentUser?.uid}/${Date.now()}_${file.name}`)
@@ -201,12 +201,12 @@ export default function AccountSettings() {
                 async () => {
                     const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
                     setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
-                    toast.success("Identity visual updated", { id: toastId })
+                    toast.success("Profile photo updated", { id: toastId })
                     setUploading(false)
                 }
             )
         } catch (error) {
-            toast.error("Upload system offline", { id: toastId })
+            toast.error("Upload failed", { id: toastId })
             setUploading(false)
         }
     }
@@ -216,22 +216,22 @@ export default function AccountSettings() {
 
         // Security checks
         if (!user.twoFactorEnabled && !formData.currentPassword) {
-            toast.error("Authorization required: Enter current password")
+            toast.error("Password required to save changes")
             return
         }
 
         if (user.twoFactorEnabled && !formData.twoFactorCode) {
-            toast.error("Identity verification required: Enter 2FA code")
+            toast.error("2FA verification required")
             return
         }
 
         if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
-            toast.error("Protocol mismatch: Passwords do not match")
+            toast.error("Passwords do not match")
             return
         }
 
         setSaving(true)
-        const toastId = toast.loading("Updating security layers...")
+        const toastId = toast.loading("Saving changes...")
 
         try {
             const token = await auth.currentUser?.getIdToken()
@@ -255,7 +255,7 @@ export default function AccountSettings() {
             const data = await res.json()
 
             if (data.success) {
-                toast.success("Profile reconfigured successfully", { id: toastId })
+                toast.success("Profile updated successfully", { id: toastId })
                 setUser(data.user)
                 // Clear password fields
                 setFormData(prev => ({
@@ -269,7 +269,7 @@ export default function AccountSettings() {
                 toast.error(data.message || "Update failed", { id: toastId })
             }
         } catch (error) {
-            toast.error("Matrix error during update", { id: toastId })
+            toast.error("System error during update", { id: toastId })
         } finally {
             setSaving(false)
         }
@@ -279,7 +279,7 @@ export default function AccountSettings() {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <Loader2 className="animate-spin text-emerald-500" size={32} />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Syncing Profile Stats...</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Loading Settings...</p>
             </div>
         )
     }
@@ -288,8 +288,8 @@ export default function AccountSettings() {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-4 text-red-500">
                 <Shield size={32} />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Profile Authorization Failed</p>
-                <Button onClick={fetchProfile} variant="outline" className="border-red-500/20 hover:bg-red-500/10 text-red-500 text-xs">Retry Connection</Button>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Access Denied</p>
+                <Button onClick={fetchProfile} variant="outline" className="border-red-500/20 hover:bg-red-500/10 text-red-500 text-xs">Retry</Button>
             </div>
         )
     }
@@ -298,7 +298,7 @@ export default function AccountSettings() {
         <div className="max-w-4xl mx-auto pb-20">
             <form onSubmit={handleUpdateProfile} className="space-y-8">
 
-                {/* 1. IDENTITY BLOCK */}
+                {/* 1. PROFILE INFORMATION */}
                 <div className="bg-zinc-900/20 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-md">
                     <div className="p-8 border-b border-white/5 bg-white/2">
                         <div className="flex items-center gap-4 mb-2">
@@ -306,8 +306,8 @@ export default function AccountSettings() {
                                 <User className="text-emerald-500" size={20} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">Identity Access</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Core Personnel Metadata</p>
+                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">Personal Information</h3>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Basic Details</p>
                             </div>
                         </div>
                     </div>
@@ -336,14 +336,14 @@ export default function AccountSettings() {
                                 )}
                             </div>
                             <div className="text-center">
-                                <h4 className="text-sm font-black uppercase tracking-widest text-zinc-300">Avatar Transmission</h4>
-                                <p className="text-[9px] text-zinc-600 font-black uppercase tracking-tighter mt-1 italic">Maximum payload: 2MB (.PNG, .JPG)</p>
+                                <h4 className="text-sm font-black uppercase tracking-widest text-zinc-300">Profile Photo</h4>
+                                <p className="text-[9px] text-zinc-600 font-black uppercase tracking-tighter mt-1 italic">Maximum size: 2MB (.PNG, .JPG)</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Node Identifier (Username)</Label>
+                                <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Username</Label>
                                 <div className="relative">
                                     <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
                                     <Input
@@ -354,7 +354,7 @@ export default function AccountSettings() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Contact Protocol (Email)</Label>
+                                <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Email Address</Label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
                                     <Input
@@ -368,7 +368,7 @@ export default function AccountSettings() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Professional Narrative (Bio)</Label>
+                            <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Bio / Description</Label>
                             <Textarea
                                 value={formData.bio}
                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, bio: e.target.value })}
@@ -385,7 +385,7 @@ export default function AccountSettings() {
                     </div>
                 </div>
 
-                {/* 2. SECURITY BLOCK */}
+                {/* 2. SECURITY SETTINGS */}
                 <div className="bg-zinc-900/20 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-md">
                     <div className="p-8 border-b border-white/5 bg-white/2">
                         <div className="flex items-center gap-4 mb-2">
@@ -393,8 +393,8 @@ export default function AccountSettings() {
                                 <Shield className="text-red-500" size={20} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">Security Clearing</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Encryption & Key Management</p>
+                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-white">Account Security</h3>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Manage your password and 2FA</p>
                             </div>
                         </div>
                     </div>
@@ -410,7 +410,7 @@ export default function AccountSettings() {
                                     <div>
                                         <p className="text-sm font-bold">Two-Factor Authentication</p>
                                         <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest">
-                                            {user.twoFactorEnabled ? 'Protocol Active' : 'Protocol Inactive'}
+                                            {user.twoFactorEnabled ? '2FA Enabled' : '2FA Disabled'}
                                         </p>
                                     </div>
                                 </div>
@@ -449,15 +449,15 @@ export default function AccountSettings() {
                                 <Info size={16} className="text-amber-500 shrink-0" />
                                 <p className="text-[9px] font-bold text-amber-500/80 leading-relaxed uppercase tracking-wide">
                                     {user.twoFactorEnabled
-                                        ? "USE YOUR MOBILE AUTHENTICATOR CODE FOR AUTHORIZATION."
-                                        : "AUTHORIZATION REQUIRES CURRENT LOGIN CREDENTIALS."}
+                                        ? "USE YOUR MOBILE AUTHENTICATOR CODE TO SAVE CHANGES."
+                                        : "PASSWORD REQUIRED TO SAVE CHANGES."}
                                 </p>
                             </div>
 
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">
-                                        {user.twoFactorEnabled ? "authenticator sync code" : "Current Authorization Key"}
+                                        {user.twoFactorEnabled ? "authenticator code" : "Current Password"}
                                     </Label>
                                     <div className="relative">
                                         {user.twoFactorEnabled ? (
@@ -467,7 +467,7 @@ export default function AccountSettings() {
                                         )}
                                         <Input
                                             type={user.twoFactorEnabled ? "text" : "password"}
-                                            placeholder={user.twoFactorEnabled ? "ENTER 6-DIGIT CODE" : "REQUIRED FOR ANY CHANGES"}
+                                            placeholder={user.twoFactorEnabled ? "ENTER 6-DIGIT CODE" : "REQUIRED FOR CHANGES"}
                                             value={user.twoFactorEnabled ? formData.twoFactorCode : formData.currentPassword}
                                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, [user.twoFactorEnabled ? 'twoFactorCode' : 'currentPassword']: e.target.value })}
                                             className={`bg-zinc-900/50 border-white/5 pl-10 focus-visible:ring-emerald-500/30 ${user.twoFactorEnabled ? 'text-emerald-500 font-mono tracking-[0.5em] text-center' : ''}`}
@@ -478,7 +478,7 @@ export default function AccountSettings() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">New Private Key</Label>
+                                        <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">New Password</Label>
                                         <div className="relative">
                                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
                                             <Input
@@ -490,7 +490,7 @@ export default function AccountSettings() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Confirm Private Key</Label>
+                                        <Label className="text-[10px] uppercase font-black tracking-widest text-zinc-500">Confirm New Password</Label>
                                         <div className="relative">
                                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
                                             <Input
@@ -521,7 +521,7 @@ export default function AccountSettings() {
                         ) : (
                             <>
                                 <Save className="mr-2" size={18} />
-                                Update Matrix
+                                Save Changes
                             </>
                         )}
                     </Button>
@@ -538,8 +538,8 @@ export default function AccountSettings() {
                                 <Shield className="text-red-500" size={20} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-red-500">Critical Access: Danger Zone</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-red-500/40">Irreversible Infrastructure protocols</p>
+                                <h3 className="text-lg font-black uppercase italic tracking-tighter text-red-500">Danger Zone</h3>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-red-500/40">Permanent actions</p>
                             </div>
                         </div>
                     </div>
@@ -547,9 +547,9 @@ export default function AccountSettings() {
                     <div className="p-8">
                         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 p-6 rounded-2xl bg-black/40 border border-red-500/10">
                             <div className="flex-1">
-                                <h4 className="text-md font-black text-white uppercase italic tracking-tight mb-1">Permanent Node Termination</h4>
+                                <h4 className="text-md font-black text-white uppercase italic tracking-tight mb-1">Delete Account</h4>
                                 <p className="text-xs text-zinc-500 leading-relaxed max-w-sm">
-                                    Executing this protocol will permanently purge your identity node, academic logs, and authorization keys. This action cannot be undone.
+                                    Deleting your account will permanently remove all your data, records, and access permissions. This action cannot be undone.
                                 </p>
                             </div>
                             <Button
@@ -573,7 +573,7 @@ export default function AccountSettings() {
                                 }}
                                 className="bg-red-600 hover:bg-red-500 text-white px-8 py-5 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all h-auto"
                             >
-                                Terminate Account
+                                Delete Account
                             </Button>
                         </div>
                     </div>
@@ -621,7 +621,7 @@ export default function AccountSettings() {
                                     disabled={verificationCode.length !== 6 || verifying}
                                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-black font-black uppercase h-14 rounded-2xl shadow-[0_10px_20px_rgba(16,185,129,0.2)]"
                                 >
-                                    {verifying ? <Loader2 className="animate-spin" size={20} /> : "Verify & Activate Protocol"}
+                                    {verifying ? <Loader2 className="animate-spin" size={20} /> : "Enable 2FA"}
                                 </Button>
                             </div>
                         </div>

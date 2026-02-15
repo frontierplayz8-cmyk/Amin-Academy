@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import { AuthProvider } from "@/context/AuthContext";
 import { CurriculumInitializer } from "@/components/CurriculumInitializer";
+import ChatBot from "@/components/ChatBot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({
           <Toaster theme="dark" position="top-center" />
           <Navbar />
           {children}
+          <ChatBot />
         </AuthProvider>
         {/* <script src="https://accounts.google.com/gsi/client" async defer></script> */}
         {/* <script src="https://js.puter.com/v2/"></script> */}

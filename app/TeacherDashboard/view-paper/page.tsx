@@ -11,6 +11,8 @@ import {
     Save,
     X,
     Loader2,
+    Wand2,
+    Sparkles
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -18,6 +20,8 @@ import { toast } from 'sonner'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { EditableText } from '@/components/EditableText'
+import { AISectionPromptModal } from '@/components/AISectionPromptModal'
+import { cn } from '@/lib/utils'
 
 interface PaperData {
     paperInfo: {
@@ -93,6 +97,8 @@ function TeacherPaperViewer() {
     const [isExporting, setIsExporting] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [debugError, setDebugError] = useState<string | null>(null)
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+    const [activeSectionAI, setActiveSectionAI] = useState<{ type: string, title: string, content: any } | null>(null)
     const paperRef = useRef<HTMLDivElement>(null)
 
     const title = searchParams.get('title') || 'Generated Exam Paper'
@@ -177,35 +183,31 @@ function TeacherPaperViewer() {
 
             toast.loading("Capturing High-Quality Render...", { id: toastId })
 
-            const canvas = await html2canvas(paperRef.current, {
+            const el = paperRef.current;
+            el.classList.add('pdf-capture-safe');
+
+            const canvas = await html2canvas(el, {
                 scale: 3,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                windowWidth: paperRef.current.scrollWidth,
-                windowHeight: paperRef.current.scrollHeight,
+                windowWidth: el.scrollWidth,
+                windowHeight: el.scrollHeight,
+                height: el.scrollHeight,
                 onclone: (clonedDoc) => {
                     const allElements = clonedDoc.querySelectorAll('*')
                     allElements.forEach((el: any) => {
                         try {
                             const style = window.getComputedStyle(el)
+                            const hasBadColor = (val: string | null) => val && (val.includes('oklch') || val.includes('lab') || val.includes('color-mix'))
 
-                            const sanitize = (val: string | null) => {
-                                if (!val) return null
-                                if (val.includes('oklch') || val.includes('lab') || val.includes('color-mix')) {
-                                    return '#000000'
-                                }
-                                return null
-                            }
-
-                            const colorSanitized = sanitize(style.color)
-                            if (colorSanitized) el.style.setProperty('color', colorSanitized, 'important')
-
-                            const bgSanitized = sanitize(style.backgroundColor)
-                            if (bgSanitized) el.style.setProperty('background-color', '#ffffff', 'important')
-
-                            const borderSanitized = sanitize(style.borderColor)
-                            if (borderSanitized) el.style.setProperty('border-color', '#000000', 'important')
+                            if (hasBadColor(style.color)) el.style.setProperty('color', '#000000', 'important')
+                            if (hasBadColor(style.backgroundColor)) el.style.setProperty('background-color', '#ffffff', 'important')
+                            if (hasBadColor(style.borderColor)) el.style.setProperty('border-color', '#000000', 'important')
+                            if (hasBadColor(style.fill)) el.style.setProperty('fill', '#000000', 'important')
+                            if (hasBadColor(style.stroke)) el.style.setProperty('stroke', '#000000', 'important')
+                            if (hasBadColor(style.boxShadow)) el.style.setProperty('box-shadow', 'none', 'important')
+                            if (hasBadColor(style.textShadow)) el.style.setProperty('text-shadow', 'none', 'important')
 
                             if (el.classList.contains('text-emerald-500') || el.classList.contains('text-emerald-600')) {
                                 el.style.setProperty('color', '#059669', 'important')
@@ -300,8 +302,10 @@ function TeacherPaperViewer() {
             }
 
             pdf.save(`${title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`)
+            el.classList.remove('pdf-capture-safe');
             toast.success("Exam Paper Exported Successfully", { id: toastId })
         } catch (error: any) {
+            paperRef.current?.classList.remove('pdf-capture-safe');
             console.error("FULL PDF EXPORT ERROR TRACE:", error)
             const errorMessage = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
             setDebugError(errorMessage)
@@ -382,6 +386,61 @@ function TeacherPaperViewer() {
         toast.info("Edits discarded")
     }
 
+    const handleAIAction = (type: string, title: string, content: any) => {
+        setActiveSectionAI({ type, title, content })
+        setIsAIModalOpen(true)
+    }
+
+    const handleAIGenerated = (data: any, action: 'ADD_CONTENT' | 'REPLACE_CONTENT' | 'IMPROVE_CONTENT') => {
+        if (!activeSectionAI || !paperData) return
+
+        const newPaperData = { ...paperData }
+        const type = activeSectionAI.type
+
+        if (type === 'mcq_group') {
+            const newMcqs = data.questions || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.mcqs = [...newPaperData.mcqs, ...newMcqs]
+            } else {
+                newPaperData.mcqs = newMcqs
+            }
+        } else if (type === 'short-questions-lessons') {
+            const newSq = data.items || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.shortQuestions = [...newPaperData.shortQuestions, ...newSq]
+            } else {
+                newPaperData.shortQuestions = newSq
+            }
+        } else if (type === 'subjective_q') {
+            const newLq = data.items || []
+            if (action === 'ADD_CONTENT') {
+                newPaperData.longQuestions = [...newPaperData.longQuestions, ...newLq]
+            } else {
+                newPaperData.longQuestions = newLq
+            }
+        } else if (type === 'poetry-explanation') {
+            const newItems = data.items || []
+            if (!newPaperData.englishData) newPaperData.englishData = {}
+            if (action === 'ADD_CONTENT') {
+                newPaperData.englishData.paraphrasing = [...(newPaperData.englishData.paraphrasing || []), ...newItems]
+            } else {
+                newPaperData.englishData.paraphrasing = newItems
+            }
+        } else if (type === 'translation-passage') {
+            const newItems = data.items || []
+            if (!newPaperData.englishData) newPaperData.englishData = {}
+            if (action === 'ADD_CONTENT') {
+                newPaperData.englishData.translation = [...(newPaperData.englishData.translation || []), ...newItems]
+            } else {
+                newPaperData.englishData.translation = newItems
+            }
+        }
+
+        setPaperData(newPaperData)
+        setIsAIModalOpen(false)
+        setActiveSectionAI(null)
+    }
+
     if (!paperData) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-500">
@@ -420,7 +479,7 @@ function TeacherPaperViewer() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto p-2 rounded-[1.5rem] bg-zinc-900/30 border border-white/5 backdrop-blur-md">
+                <div className="flex items-center gap-3 w-full md:w-auto p-2 rounded-3xl bg-zinc-900/30 border border-white/5 backdrop-blur-md">
                     {/* Editing Controls */}
                     {isEditing ? (
                         <div className="flex items-center gap-2">
@@ -473,7 +532,7 @@ function TeacherPaperViewer() {
 
             {/* Error Overlay for Debugging */}
             {debugError && (
-                <div className="max-w-5xl mx-auto mt-4 p-6 bg-red-500/5 border border-red-500/20 rounded-[2rem] backdrop-blur-md animate-in zoom-in-95 duration-300">
+                <div className="max-w-5xl mx-auto mt-4 p-6 bg-red-500/5 border border-red-500/20 rounded-4xl backdrop-blur-md animate-in zoom-in-95 duration-300">
                     <div className="flex items-center gap-2 text-red-500 mb-3">
                         <X size={16} />
                         <span className="text-[10px] font-black uppercase tracking-widest">Engine Failure Trace</span>
@@ -585,14 +644,23 @@ function TeacherPaperViewer() {
                     </div>
 
                     {/* --- SECTION A: MCQS --- */}
-                    <section className="mb-8">
-                        <div className="text-[12px] font-bold mb-2 border border-black p-1 text-center">
+                    <section className="mb-8 group/section relative">
+                        <div className="text-[12px] font-bold mb-2 border border-black p-1 text-center relative">
                             <EditableText
                                 value={paperData.headerDetails?.mcqInstruction || "Note: You have four choices for each objective type question as A, B, C and D. The choice which you think is correct, fill that circle in front of that question number."}
                                 onSave={(val) => updateHeaderDetail('mcqInstruction', val)}
                                 isEditing={isEditing}
                                 tagName="p"
                             />
+                            {isEditing && (
+                                <button
+                                    onClick={() => handleAIAction('mcq_group', 'MCQ Section', paperData.mcqs)}
+                                    className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover/section:opacity-100 transition-opacity shadow-sm hover:bg-indigo-600 hover:text-white"
+                                    title="AI Magic"
+                                >
+                                    <Wand2 size={14} />
+                                </button>
+                            )}
                         </div>
 
                         <div className="space-y-6">
@@ -751,13 +819,23 @@ function TeacherPaperViewer() {
                                     const attemptCount = Math.floor(chunk.length * 2 / 3)
 
                                     return (
-                                        <div key={cIdx} className="mb-8">
-                                            <div className="flex justify-between font-bold border-b border-black mb-2 text-[14px]">
+                                        <div key={cIdx} className="mb-8 group/section relative">
+                                            <div className="flex justify-between font-bold border-b border-black mb-2 text-[14px] relative">
                                                 <span>
                                                     <span className="mr-1">{questionNumber}.</span>
                                                     Write short answers to any {convertNumberToWord(attemptCount)} ({attemptCount}) questions.
                                                 </span>
                                                 <span>(2 x {attemptCount} = {attemptCount * 2})</span>
+
+                                                {isEditing && (
+                                                    <button
+                                                        onClick={() => handleAIAction('short_questions', `Short Questions Part ${cIdx + 1}`, chunk.map(c => c.data))}
+                                                        className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover/section:opacity-100 transition-opacity shadow-sm hover:bg-indigo-600 hover:text-white"
+                                                        title="AI Magic"
+                                                    >
+                                                        <Wand2 size={14} />
+                                                    </button>
+                                                )}
                                             </div>
 
                                             <div className="grid grid-cols-1 gap-y-2">
@@ -795,10 +873,20 @@ function TeacherPaperViewer() {
                             <div className="mb-8 space-y-8">
                                 {/* Q2: Paraphrasing */}
                                 {paperData.englishData.paraphrasing && paperData.englishData.paraphrasing.length > 0 && (
-                                    <div className="page-break-inside-avoid">
-                                        <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
+                                    <div className="group/section relative page-break-inside-avoid">
+                                        <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px] relative">
                                             <span><span className="mr-1">2.</span>Paraphrase one of the following stanzas.</span>
                                             <span>(5)</span>
+
+                                            {isEditing && (
+                                                <button
+                                                    onClick={() => handleAIAction('paraphrasing', 'Paraphrasing Section', paperData.englishData?.paraphrasing)}
+                                                    className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover/section:opacity-100 transition-opacity shadow-sm hover:bg-indigo-600 hover:text-white"
+                                                    title="AI Magic"
+                                                >
+                                                    <Wand2 size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
                                             {paperData.englishData.paraphrasing.map((stanza, idx) => (
@@ -1024,10 +1112,20 @@ function TeacherPaperViewer() {
 
                                 {/* Q8: Translation */}
                                 {paperData.englishData.translation && paperData.englishData.translation.length > 0 && (
-                                    <div className="page-break-inside-avoid">
-                                        <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px]">
+                                    <div className="group/section relative page-break-inside-avoid">
+                                        <div className="flex justify-between font-bold border-b border-black mb-4 text-[14px] relative">
                                             <span><span className="mr-1">8.</span>Translate the following sentences into English.</span>
                                             <span>(4)</span>
+
+                                            {isEditing && (
+                                                <button
+                                                    onClick={() => handleAIAction('translation', 'Translation Section', paperData.englishData?.translation)}
+                                                    className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover/section:opacity-100 transition-opacity shadow-sm hover:bg-indigo-600 hover:text-white"
+                                                    title="AI Magic"
+                                                >
+                                                    <Wand2 size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="space-y-4 px-4">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1085,8 +1183,8 @@ function TeacherPaperViewer() {
 
 
                         {/* Long Questions */}
-                        <div className="mt-8 page-break-inside-avoid">
-                            <div className="flex justify-between font-bold border-b border-black mb-4 italic text-[14px]">
+                        <div className="mt-8 group/section relative">
+                            <div className="flex justify-between font-bold border-b border-black mb-4 italic text-[14px] relative">
                                 <span>
                                     <EditableText
                                         value={paperData.headerDetails?.longQInstruction || "Note: Attempt any THREE (3) questions."}
@@ -1095,6 +1193,16 @@ function TeacherPaperViewer() {
                                     />
                                 </span>
                                 <span>(8 x {paperData.longQuestions.length} = {paperData.longQuestions.length * 8})</span>
+
+                                {isEditing && (
+                                    <button
+                                        onClick={() => handleAIAction('long_questions', 'Long Questions Section', paperData.longQuestions)}
+                                        className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg opacity-0 group-hover/section:opacity-100 transition-opacity shadow-sm hover:bg-indigo-600 hover:text-white"
+                                        title="AI Magic"
+                                    >
+                                        <Wand2 size={14} />
+                                    </button>
+                                )}
                             </div>
 
                             <div className="space-y-8">
@@ -1215,11 +1323,12 @@ function TeacherPaperViewer() {
     line-height: 1.6;
   }
 `}</style>
+            {/* Add Long Questions AI button if exists, or just wrap the section */}
         </div>
     )
 }
 
-export default function ViewPaperPage() {
+export default function TeacherPaperViewerPage() {
     return (
         <Suspense fallback={
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-500">

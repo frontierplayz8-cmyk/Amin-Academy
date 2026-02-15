@@ -13,11 +13,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
-import {
-    ResizableHandle,
-    ResizablePanel,
-    ResizablePanelGroup
-} from '@/components/ui/resizable'
 import { Sidebar, SidebarContent, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -26,6 +21,8 @@ import * as fabric from 'fabric' // For type checking if needed
 // Sub-components
 import { LayersPanel, Layer } from './LayersPanel'
 import { AssetsPanel } from './AssetsPanel'
+import { PosterGenerator } from './PosterGenerator'
+import { MagicMediaPanel } from './MagicMediaPanel'
 
 interface RightPanelProps {
     activePanel: 'properties' | 'brand-kit' | 'ai-lab' | 'assets'
@@ -34,7 +31,7 @@ interface RightPanelProps {
     updateActiveObject: (props: any) => void
     fabricCanvasRef: React.MutableRefObject<fabric.Canvas | null>
     handleClippingMask: () => void
-
+    onRemoveBackground: () => void
     // Layers Props
     layers: Layer[]
     selectedLayerId: number | null
@@ -60,6 +57,7 @@ export function RightPanel({
     updateActiveObject,
     fabricCanvasRef,
     handleClippingMask,
+    onRemoveBackground,
     layers,
     selectedLayerId,
     onLayerSelect,
@@ -274,7 +272,7 @@ export function RightPanel({
                 <button
                     onClick={() => setActivePanel('properties')}
                     className={cn(
-                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
+                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5",
                         activePanel === 'properties' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
                     )}
                 >
@@ -283,7 +281,7 @@ export function RightPanel({
                 <button
                     onClick={() => setActivePanel('assets')}
                     className={cn(
-                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
+                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5",
                         activePanel === 'assets' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
                     )}
                 >
@@ -292,7 +290,7 @@ export function RightPanel({
                 <button
                     onClick={() => setActivePanel('brand-kit')}
                     className={cn(
-                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
+                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5",
                         activePanel === 'brand-kit' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
                     )}
                 >
@@ -301,7 +299,7 @@ export function RightPanel({
                 <button
                     onClick={() => setActivePanel('ai-lab')}
                     className={cn(
-                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors",
+                        "flex-1 border-r border-black/20 hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5",
                         activePanel === 'ai-lab' ? "bg-[#2d2d2d] text-blue-400" : "hover:text-white"
                     )}
                 >
@@ -539,66 +537,74 @@ export function RightPanel({
 
                     {activePanel === 'ai-lab' && (
                         /* AI Lab Panel */
-                        <div className="flex-1 flex flex-col p-4 space-y-6">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Wand2 size={16} className="text-blue-400" />
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-white">Magic Media</span>
-                                </div>
+                        <div className="w-full bg-[#2d2d2d] h-full flex flex-col">
+
+                            {/* Magic Media Generator */}
+                            <div className="border-b border-white/5">
+                                <MagicMediaPanel onAddImage={onAddAIImage} />
                             </div>
 
-                            <div className="space-y-4 pt-4 border-t border-white/5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <History size={16} className="text-emerald-400" />
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-white">Content Planner</span>
+                            {/* Legacy AI Tools */}
+                            <div className="p-4 space-y-6 shrink-0 overflow-y-auto">
+                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <History size={16} className="text-emerald-400" />
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-white">Content Planner</span>
+                                    </div>
+                                    <Button
+                                        onClick={() => toast.info("Social Media Calendar opened", {
+                                            description: "Sync your designs directly to Instagram & LinkedIn."
+                                        })}
+                                        variant="outline"
+                                        className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-500/0 hover:shadow-emerald-500/20"
+                                    >
+                                        Open Calendar
+                                    </Button>
                                 </div>
-                                <Button
-                                    onClick={() => toast.info("Social Media Calendar opened", {
-                                        description: "Sync your designs directly to Instagram & LinkedIn."
-                                    })}
-                                    variant="outline"
-                                    className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-500/0 hover:shadow-emerald-500/20"
-                                >
-                                    Open Calendar
-                                </Button>
-                            </div>
 
-                            <div className="space-y-4 pt-4 border-t border-white/5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Sparkles size={16} className="text-purple-400" />
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-white">Pro Studio</span>
-                                </div>
-                                <Button onClick={handleClippingMask} variant="outline" className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all">
-                                    Clipping Mask
-                                </Button>
-                                <Button
-                                    onClick={onTextToVector}
-                                    variant="outline"
-                                    className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all"
-                                >
-                                    Text-to-Vector
-                                </Button>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[...Array(4)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            onClick={() => onAddAIImage(`https://picsum.photos/seed/${i + 10}/800/600`)}
-                                            className="aspect-square bg-[#1e1e1e] rounded flex items-center justify-center border border-white/5 hover:border-blue-500 transition-all cursor-pointer overflow-hidden relative group"
-                                        >
-                                            <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <Sparkles size={16} className="text-white" />
+                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Sparkles size={16} className="text-purple-400" />
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-white">Pro Studio</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        <Button onClick={handleClippingMask} variant="outline" className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all">
+                                            Clipping Mask
+                                        </Button>
+                                        <Button onClick={onRemoveBackground} variant="outline" className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-green-600 hover:text-white transition-all group">
+                                            <Wand2 className="w-3 h-3 mr-1 group-hover:rotate-12 transition-transform" />
+                                            Remove BG
+                                        </Button>
+                                    </div>
+                                    <Button
+                                        onClick={onTextToVector}
+                                        variant="outline"
+                                        className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all"
+                                    >
+                                        Text-to-Vector
+                                    </Button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[...Array(4)].map((_, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => onAddAIImage(`https://picsum.photos/seed/${i + 10}/800/600`)}
+                                                className="aspect-square bg-[#1e1e1e] rounded flex items-center justify-center border border-white/5 hover:border-blue-500 transition-all cursor-pointer overflow-hidden relative group"
+                                            >
+                                                <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <Sparkles size={16} className="text-white" />
+                                                </div>
+                                                <img src={`https://picsum.photos/seed/${i + 10}/100/100`} alt="AI Generated" className="w-full h-full object-cover opacity-50 group-hover:opacity-100" />
                                             </div>
-                                            <img src={`https://picsum.photos/seed/${i + 10}/100/100`} alt="AI Generated" className="w-full h-full object-cover opacity-50 group-hover:opacity-100" />
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
+                                    <Button
+                                        onClick={onDataToViz}
+                                        variant="outline"
+                                        className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all"
+                                    >
+                                        Data-to-Viz
+                                    </Button>
                                 </div>
-                                <Button
-                                    onClick={onDataToViz}
-                                    variant="outline"
-                                    className="w-full bg-[#1e1e1e] border-white/5 text-[10px] uppercase font-black tracking-widest h-10 rounded-xl hover:bg-purple-600 hover:text-white transition-all"
-                                >
-                                    Data-to-Viz
-                                </Button>
                             </div>
                         </div>
                     )}

@@ -23,6 +23,7 @@ export default function LoginPage() {
     try {
       setloading(true)
       const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: 'select_account' })
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
@@ -38,7 +39,7 @@ export default function LoginPage() {
       const userData = userDoc.data();
 
       if (userData.status === 'banned') {
-        toast.error('Identity Expelled: Access to this node is permanently revoked.');
+        toast.error('Account Banned: Access has been permanently revoked.');
         await signOut(auth);
         setloading(false);
         return;
@@ -83,7 +84,7 @@ export default function LoginPage() {
       if (data.success) {
         const userDoc = await getDoc(doc(db, 'users', mfaUser.uid));
         const ranks = userDoc.data()?.ranks;
-        toast.success('Identity Verified');
+        toast.success('Login Successful');
 
         if (ranks === 'Student') router.push('/dashboard')
         else if (ranks === 'Teacher') router.push('/TeacherDashboard')
@@ -138,7 +139,7 @@ export default function LoginPage() {
         }
 
         const ranks = userData.ranks;
-        toast.success('Access Granted');
+        toast.success('Login Successful');
 
         if (ranks === 'Student') router.push('/dashboard')
         else if (ranks === 'Teacher') router.push('/TeacherDashboard')
@@ -169,18 +170,18 @@ export default function LoginPage() {
         {/* Header Content */}
         <div className="text-center mb-10 space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-4">
-            <ShieldCheck size={12} /> SECURE SYSTEMS ACCESS
+            <ShieldCheck size={12} /> SECURE LOGIN
           </div>
           <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-            Welcome <span className="text-emerald-500 text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-600">Back</span>
+            Welcome <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-400 to-amber-600">Back</span>
           </h1>
-          <p className="text-zinc-500 font-medium tracking-tight">Access your academic neural link workspace.</p>
+          <p className="text-zinc-500 font-medium tracking-tight">Access your academic dashboard.</p>
         </div>
 
         {/* Auth Card */}
         <div className="bg-zinc-900/40 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-8 md:p-10 shadow-2xl overflow-hidden relative group min-h-[460px] flex flex-col">
           {/* Subtle top edge highlight */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
 
           {step === 1 ? (
             <div className="animate-in fade-in slide-in-from-left-8 duration-500">
@@ -243,7 +244,7 @@ export default function LoginPage() {
                   <div className="w-full border-t border-white/5"></div>
                 </div>
                 <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                  <span className="bg-[#0b0b0b] px-4 text-zinc-600">Secondary Uplink</span>
+                  <span className="bg-[#020202] px-4 text-zinc-600">Alternative Login</span>
                 </div>
               </div>
 
@@ -308,7 +309,7 @@ export default function LoginPage() {
                   >
                     {loading ? <LoaderCircle className='animate-spin' size={24} /> : (
                       <>
-                        Verify Identity
+                        Verify Code
                         <ShieldCheck size={20} />
                       </>
                     )}
@@ -319,7 +320,7 @@ export default function LoginPage() {
                     onClick={() => setStep(1)}
                     className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors py-2"
                   >
-                    <ChevronLeft size={14} /> Back to Credentials
+                    <ChevronLeft size={14} /> Back to Login
                   </button>
                 </div>
               </form>

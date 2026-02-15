@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CitationManager } from './CitationManager'
 import { MathRenderer } from './MathRenderer'
 
-export function ScholarPanel({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+export function ScholarPanel({ isOpen, onClose, onExport }: { isOpen: boolean, onClose: () => void, onExport?: () => void }) {
     if (!isOpen) return null
 
     return (
@@ -19,8 +19,8 @@ export function ScholarPanel({ isOpen, onClose }: { isOpen: boolean, onClose: ()
                     <BookOpen size={16} className="text-emerald-500" />
                     <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300">Scholar Tools</h2>
                 </div>
-                <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0 hover:bg-white/10">
-                    <Split size={14} />
+                <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 hover:bg-white/10 text-white">
+                    <Split className="rotate-90" size={16} />
                 </Button>
             </div>
 
@@ -30,7 +30,22 @@ export function ScholarPanel({ isOpen, onClose }: { isOpen: boolean, onClose: ()
                     <TabsTrigger value="math" className="text-xs">Formulae</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="citation" className="flex-1 overflow-y-auto p-4 m-0">
+                <TabsContent value="citation" className="flex-1 overflow-y-auto p-4 m-0 space-y-6">
+                    {onExport && (
+                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-3">
+                            <div className="flex items-center gap-2 text-emerald-500">
+                                <Calculator size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Quick Export</span>
+                            </div>
+                            <p className="text-[10px] text-zinc-400">Generate a high-quality PDF of your paper directly from AI Magic.</p>
+                            <Button
+                                className="w-full bg-emerald-500 text-black hover:bg-emerald-400 font-bold h-9 text-xs"
+                                onClick={onExport}
+                            >
+                                Export Print-Ready PDF
+                            </Button>
+                        </div>
+                    )}
                     <CitationManager />
 
                     <div className="mt-8">
